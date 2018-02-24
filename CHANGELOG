@@ -1,0 +1,5709 @@
+Aacraid (ARC) Linux driver release notes. Ascending (chronological) order
+comments. Modifications performed by Mark_Salyzyn@adaptec.com and 
+Achim_Leubner@adaptec.com if not otherwise noted. 
+Document created 2003-05-15 at Version 0.9.10.
+
+Streams support otc-main, avonpark and enzo
+
+Version: 0.9.10
+
+Version: 1.1.2
+
+2003-05-15	Mark_Salyzyn@adaptec.com
+
+Differences between 2.4.21-rc2-ac2 kernel and our 1.1.2 versioned driver,
+changes as performed by Deanna Bonds, Bob Pasteur and Mark Salyzyn.
+
+aachba.c:
+	- If the state of a logical unit is hidden, then do not report. This
+	  state is typically entered when a device is being cleared.
+	- Added support for the Tallahassee project, where one channel is
+	  dedicated to SCSI, and the other channel is dedicated to RAID.
+	- Resolved some issues surrounding PAE support and IA64.
+	- If the driver is a not a boot disk driver, then set the Removable
+	  bit on the inquiry strings returned by the logical units to ensure
+	  that any changes in the arrays will be acquired when the device is
+	  re-attached.
+	- mask the SRB status with 0x3F to deal with misbehaving devices.
+	- Do not report DISKs to inquiry requests on the SCSI bus except if
+	  the channel is designated as a SCSI only bus.
+	- Propagate check conditions to the SCSI command result.
+	- Add support for programmable timeouts to propagate down toe the
+	  requests.
+	- If we have pae mode enabled, right after we get the adapter
+	  information and determine the pae mode capability, we enable the
+	  system to issue 64 bit requests.
+aacraid.h:
+	- Had to drop from 512 commands to 100 commands because some versions
+	  of the firmware would starve commands causing a timeout reaction
+	  which lead to lost commands.
+	- Added a global control variable for nondasd and paemode support.
+	- Dealt with some 64 bit / 32 bit issues in list_head structures and
+	  helper Macros, replacing them with our own more sensitive variants.
+	- Differentiated virtual and physical references to the shared fib
+	  allocations.
+	- information structure not synchronized to firmware, needed to add
+	  a clusterchannelmask.
+	- Added definitions in support of the new configuration information
+	  page bits in support of Tallahassee.
+	- Changed to an allocated fib pool, rather than an array in the hba
+	  structure as this affected the SCSI memory pool.
+	- Added some AIF definitions to permit us to sniff for container
+	  changes to permit a rescan to pick up new information or targets.
+commctrl.c:
+	- The fib reference was changed to a physical and a virtual address,
+	  absorb the name changes.
+	- The list_head structure handlers have been replaced with our own,
+	  absorb the name changes.
+	- The fib address reported in an AIF is a physical (32 bit) reference,
+	  and not a virtual (possibly 64 bit) reference.
+	- added the ioctl handling for sending a raw srb (FSACTL_SEND_RAW_SRB).
+comminit.c:
+	- Deal with IA64 issues.
+	- Change to using the physical address (32 bit) for the AIF references.
+	- The list_head structure handlers have been replaced with our own,
+	  absorb the name changes.
+	- Observed a memory leak, free up the queue resources should we fail
+	  to initialize the adapter.
+commsup.c:
+	- The fib reference was changed to a physical and a virtual address,
+	  absorb the name changes.
+	- Instead of panicking the kernel when a fib allocation was available,
+	  sleep until it is available.
+	- Submitted fib pointers are physical (32 bit) rather than virtual
+	  (possibly 64 bit) values.
+	- producer and consumer indexes should be converted over to local
+	  cpu endian before comparison.
+	- aac_handle_aif now sniffs AIF events and takes plug and play action
+	  for container changes.
+	- The aif thread is set up to be a kernel thread, and not a user
+	  thread. This permits us the ability to make plug and play calls
+	  without prejudice.
+	- Added instrumentation to the aif thread to confirm the plug and
+	  play activity and as an aid to several other debug sessions.
+	- Do not age an aif context based on the last received aif, but rather
+	  the last poll.
+dpcsup.c:
+	- The fib reference was changed to a physical and a virtual address,
+	  absorb the name changes.
+	- Submitted fib pointers are physical (32 bit) rather than virtual
+	  (possibly 64 bit) values.
+linit.c:
+	- Added paemode control.
+	- Added various upcoming board products, and documented better the
+	  existing board product ids. This includes SATA RAID products.
+	- needed to take the io_request_lock during portions of initialization.
+	- allocate the fib resource separately, rather than part of adapter
+	  structure to aid in the precious SCSI resources.
+	- cleanup of none dasd support options.
+	- Added more details about the build date of the driver to the proc
+	  information.
+	- dropped a change that permitted 64 bit DMA resources to be generated
+	  instead of through a 32 bit bounce buffer. (it was moved to aachba.c
+	  where it can be turned on after we determine the adapter's
+	  capabilities).
+	- max_id, max_lun and max_channel parameters are set after the
+	  adapter information has been picked up (the number of channels is
+	  based on the product id table now).
+sa.c:
+	- Context of timeout handling was incorrect, only noticed in IA64
+	  bit machines (due to lack of BIOS initialization).
+
+Differences that need further investigation and could be viewed as regressions
+and added after submission:
+
+rx.c:
+	- Dropped detection of failure to generate kernel command thread.
+sa.c:
+	- Dropped detection of failure to generate kernel command thread.
+
+Version: 1.1.3
+
+2003-07-01	Mark_Salyzyn@adaptec.com
+
+aachba.c:
+	- Added aac_get_container_name to permit override of array inquiry
+	  string with the set name.
+
+2003-07-08	Mark_Salyzyn@adaptec.com
+
+aachba.c:
+	- Return 0 (success) for unsupported commands, the check condition
+	  should perform the necessary action of error handling.
+
+2003-07-10	Mark_Salyzyn@adaptec.com
+
+aachba.c:
+	- The pass-through SCSI SCB command in PAE mode was getting the fib
+	  size count wrong, by using the 32 bit command, then doing an (n-1)
+	  times the size of the 64 bit scatter gather. Resolution was to
+	  subtract the 32 bit scatter gather, then do an n times the 64 scatter
+	  gather size.
+	- Only go into PAE mode if more than 4MB of memory in the system.
+
+2003-07-10	Mark_Salyzyn@adaptec.com
+
+linit.c:
+	- Added `Family' product codes and reordered the product discovery code
+	  to produce devices in PCI order rather than in product order.
+	  Dell, Legend and Adaptec Families were produced with the assumption
+	  of 2 available busses.
+
+2003-07-24	Mark_Salyzyn@adaptec.com
+
+linit.c:
+	- Added Bearcat (6 ch SATA) and a commented entry for Lancer where
+	  future workarounds may be necessary due to hardware constraints.
+	- Set highmem_io (for kernels of 2.4.18 and above).
+
+aachba.c:
+	- Set highmem_io (for kernels of 2.4.18 and above; and when the
+	  adapter is guaranteed to handle the possible address ranges it
+	  will be provided).
+
+Version: 1.1.4:
+
+2003-07-28	Mark_Salyzyn@adaptec.com
+
+aacraid.h+common/include/fsaioctl.h+aachba.c
+	- Added the FSACTL_REGISTER_FIB_SEND function to the ioctl. This ioctl
+	  is *not* a user accessible ioctl, meant only for driver use to permit
+	  stacking a filter driver just ahead of the hardware layer. The call
+	  to register is:
+
+		typedef void (*fib_callback)(void *ctxt, struct fib *fibctx);
+		typedef struct {
+			int (*fib_send)(u16 command,
+					struct fib * context,
+					unsigned long fib_size,
+					int priority,
+					int wait,
+					int reply
+					fib_callback callback,
+					void * ctxt);
+		} fib_send_t;
+		. . .
+		fib_send_t original;
+		int dummy_fib_send (u16 command,
+				    struct fib * context,
+				    unsigned long fib_size,
+				    int priority,
+				    int wait,
+				    int reply
+				    fib_callback callback,
+				    void * ctxt)
+		{
+			return (*original->fib_send)(command, context, fib_size, priority, wait, reply, callback, ctxt);
+		}
+		. . .
+		Scsi_Host_Template * host;
+		Scsi_Device * adapter;
+		original->fib_send = dummy_fib_send;
+		host->ioctl(adapter, FSACTL_REGISTER_FIB_SEND, &original);
+
+	  Return value from the ioctl include ENOTTY (not supported), EINVAL
+	  (invalid argument pointer) and EBUSY (another function already
+	  registered) and the original fib_send function is returned in the
+	  ioctl argument structure. A NULL value for the fib_send member of the
+	  structure deregisters the filter driver. The fib_callback function is
+	  issued at interrupt priority and should follow all the constraints of
+	  interrupt operation. It is the responsibility of the registered
+	  fib_send function to ensure that the original fib_callback function
+	  is called with the ctxt value when completing the command (this
+	  subtlety is lost in the above dummy function).
+
+2003-07-28	Mark_Salyzyn@adaptec.com
+
+linit.c:
+	- Added Kernel, Firmware and BIOS revision and build number to proc
+	  information.
+	- Added board serial number to proc information.
+
+aachba.c:
+	- Do not set removable bit in the inquiry command, the aif delivery
+	  of array status change will handle the reasons for the removable
+	  bit (capacity change and differences in the partition table). Some
+	  customers take issue with the fact our arrays appear as removable.
+
+commctrl.c:
+	- Reported driver version and build number instead of Firmware version
+	  and build number for the Miniport Version Check ioctl. ADPmp57715
+
+2003-08-06	Mark_Salyzyn@adaptec.com and a cast of thousands
+
+all files:
+	- Added appropriate ifdefs, or merged in additions, in support of the
+	  2.6.0-test2 kernels as follows:
+
+Makefile:
+	- Added ifdefs for 2.4 and 2.6 kernels so we can use a common Makefile
+	  for both kernel build environments.
+
+aachba.c:
+	- use linux/blkdev.h in 2.5+ kernels.
+	- define aac_spin_* macros to differentiate between lock requirements
+	  in 2.5+ and 2.4 kernels.
+	- Use the SCSI layers definitions of the SCSI commands, rather than
+	  our own internal SS_* manifests.
+	- Define SCSICMD_TO_* macros to acquire the SCSI target host, channel,
+	  id and lun.
+	- Use the 2.6 SAM_* status codes for return, the 2.4 system will
+	  redefine the SAM_* codes to 2.4 variants.
+	- Change to devname instead of devno when referencing devices to
+	  simplify conversions.
+	- MAXIMUM_NUM_CONTAINERS references were +/- 1 in comparisons, made
+	  this value a `number' rather than a mix of `number' and `limit'.
+	- Resolved `Cast of pointer from integer of different size' by
+	  (void *)(ulong)dma_addr_t.
+	- Change to `id' rather than `target' to match SCSI subsystem
+	  references name for consistency.
+
+aacraid.h:
+	- MAXIMUM_NUM_CONTAINERS references were +/- 1 in comparisons, made
+	  this value a `number' rather than a mix of `number' and `limit'.
+	- Removed AAC_MAX_TARGET, as it is no longer used.
+	- Added CONTAINER_TO_* macros to simplify references.
+	- Change to `id' rather than `target' to match SCSI subsystem
+	  references name for consistency.
+	- Change to devname instead of devno when referencing devices.
+	- Use cap_to_cyls inline to handle 64 bit calculation correctly.
+
+commctrl.c:
+	- use linux/blkdev.h in 2.5+ kernels.
+	- Change to `id' rather than `target' to match SCSI subsystem
+	  references name for consistency.
+
+comminit.c:
+	- use linux/blkdev.h in 2.5+ kernels.
+
+commsup.c:
+	- use linux/blkdev.h in 2.5+ kernels.
+	- Moved CONTAINER_TO_* macros to aacraid.h to simplify references.
+	- Device Discovery loops are different for 2.4 and 2.5+ kernels,
+	  use list_for_each_entry siblings instead of host_queue loop.
+	- daemonize adds the process name as a parameter, and requires
+	  SIGKILL to be enabled to permit kernel shutdown in 2.5+ kernels.
+
+dpcsup.c:
+	- use linux/blkdev.h in 2.5+ kernels.
+
+linit.c:
+	- use linux/blkdev.h in 2.5+ kernels.
+	- added aacids to provide a table hint for installers.
+	- changed over to utilize ANSI structure initialization.
+	- aac_biosparm and aac_procinfo change parameters in 2.5+ kernels.
+	- aac_slave_configure replaces aac_queuedepth in 2.5+ kernels.
+	- detect no longer needs to unlock io_request_lock to do it's duty
+	  in 2.5+ kernels.
+	- use SCSI_set_device in 2.5+ kernels rather than scsi_set_pci_device.
+	- Change to devname instead of devno when referencing devices to
+	  simplify conversions.
+	- Use MAXIMUM_NUM_CONTAINERS rather than AAC_MAX_TARGET
+	- Use cap_to_cyls inline to handle 64 bit calculation correctly in
+	  aac_biosparm.
+	- Use minor in 2.5+ kernels instead of MINOR macro.
+
+rx.c:
+	- use linux/blkdev.h in 2.5+ kernels.
+	- interrupts now return irqreturn_t.
+
+sa.c:
+	- use linux/blkdev.h in 2.5+ kernels.
+	- interrupts now return irqreturn_t.
+
+2003-08-15	Mark_Salyzyn@adaptec.com
+
+install.sh:
+	- increased range of kernel version reports in the magic file to 30.
+
+2003-08-19	Mark_Salyzyn@adaptec.com & ijohns@elipsan.com
+
+aachba.c:
+	- status_byte in the result is shifted down by one.
+	- set_sense spoof was not immediately followed by a copy of the check
+	  condition results into the SCSI command.
+
+2003-08-20	Mark_Salyzyn@adaptec.com, Scott_Long@adaptec.com & Alan Cox
+
+commctrl.c:
+	- The raw SCSI SCB ioctl command in PAE mode was getting the fib
+	  size count wrong, by using the 32 bit command, then doing an (n-1)
+	  times the size of the 64 bit scatter gather. Resolution was to
+	  subtract the 32 bit scatter gather, then do an n times the 64 scatter
+	  gather size.
+
+aacraid.h:
+	- Added definition of CT_FLUSH_CACHE command and structures.
+	- Added AAC_QUIRK_31BIT for ROMB based adapters.
+
+linit.c:
+	- Added AAC_QUIRK_31BIT for ROMB based adapters.
+	- Check return from scsi_register.
+
+aachba.c:
+	- Added support for issuing CT_FLUSH_CACHE command when the SCSI
+	  SYNCHRONIZE command is issued to a container.
+	- Restored mask after adding AAC_QUIRK_31BIT for ROMB based adapters.
+
+2003-08-21	Mark_Salyzyn@adaptec.com
+
+aachba.c:
+	- Changed aac_get_container_name to be a none-blocking function,
+	  completing the incoming scsicmd with the adapter response.
+
+2003-08-26	Mark_Salyzyn@adaptec.com
+
+commsup.c + aacraid.h:
+	- Altered handling of AIF messages from Firmware to differentiate
+	  events in a finer grained manner.
+
+2003-08-29	Mark_Salyzyn@adaptec.com
+
+aachba.c + aacraid.h
+	- Driver too noisy, undefined AAC_DETAILD_STATUS_INFO and incorporated
+	  check condition report into the AAC_DETAILED_STATUS_INFO ifdef.
+
+2003-09-03	Mark_Salyzyn@adaptec.com
+
+aachba.c:
+	- Check if the device is in use and report that as a locked device
+	  to both the FSACTL_QUERY_DISK and FSACTL_DELETE_ARRAY ioctls.
+	- unlock/lock around probe_container as this is a blocking function.
+	  This change addresses a deadlock issue that surfaced in SMP only
+	  environments.
+
+Version: 1.1.4-2172
+
+2003-09-04	Mark_Salyzyn@adaptec.com
+
+commsup.c:
+	- References to the Status Job update structure were at incorrect
+	  offsets causing incorrect operation during an Array Clear with
+	  regards to plug and play actions.
+
+Version: 1.1.4-2177
+
+2003-09-05	Mark_Salyzyn@adaptec.com
+
+aachba.c:
+	- Cleanup request from the SCSI list maintainers.
+	- Dropped use of SCSICMD_TO_CHANNEL & friends since
+	  scsicmd->device->channel is available in all versions of the
+	  operating system.
+	- Removed deprecated code and/or comments related to deprecation.
+	- include <linux/blkdev.h> works in all versions of the operating
+	  system.
+
+2003-09-09	Mark_Salyzyn@adaptec.com
+
+aacraid.h:
+	- NUM_FIBs should be 64 larger (AIFS) larger than the NUM_IO_FIBS.
+
+commsup.c:
+	- efficiency improved if we hold on to the aac_queue variable, aims
+	  towards better code compliance and consistency.
+
+2003-09-15	Mark_Salyzyn@adaptec.com
+
+rkt.c:
+	- Copy if rx.c with rx = rkt
+
+aacraid.h:
+	- Added definition for rkt interface structures, copy of rx, but a
+	  larger reserved region.
+
+linit.c:
+	- Added product code for ROC (Lancer/Rocket) U320 two channel, use rkt
+	  interface.
+
+2003-09-16	Mark_Salyzyn@adaptec.com
+
+linit.c:
+	- Show Adapter vendor and model in proc information.
+
+Version: 1.1.4-2185
+
+2003-09-16	Mark_Salyzyn@adaptec.com
+
+aacraid.h:
+	- Added definition of nblank() to assist us in determining if
+	  dprintk(x) is defined as a blank definition to enable us to ifdef
+	  debug code that ends up calling only dprintk functions.
+
+commsup.c:
+	- Ignore events that refer to containers > MAXIMUM_NUM_CONTAINERS
+	- include <linux/blkdev.h> works in all versions of the operating
+	  system.
+
+linit.c:
+	- print more details about outstanding commands when a SCSI hang
+	  occurs (first use of nblank() macro just defined in aacraid.h)
+
+2003-09-19	Mark_Salyzyn@adaptec.com & Mark Haverkamp <markh@osdi.org>
+
+commsup.c & aachba.c:
+	- valid flag has added support for a value of 2, which means target
+	  is still valid, but needs a probe_container.
+
+commsup.c:
+	- fib_alloc should not go to sleep, but return NULL if there are no
+	  available entries in the pool.
+
+dpcsup.c:
+	- print a message if the fib kmalloc fails when forwarding AIFs
+
+comminit.c:
+	- check fib_alloc return, and report -ENOMEM should the pool be
+	  empty.
+
+aachba.c:
+	- Check value of scsicmd->scsi_done in aac_io_done as we can get
+	  errant firmware which returns commands twice (no released firmware
+	  does this, this is a driver hardening issue only).
+	- When a fib_alloc fails, return -1 to SCSI layer. Formerly, we would
+	  send the command with DID_ERROR.
+
+Version: 1.1.4-2192
+
+2003-09-25	Mark_Salyzyn@adaptec.com
+
+linit.c:
+	- Moved debug variables into block to reduce impact on none-debug
+	  environments.
+
+dpcsup.c + commsup.c:
+	- Use the fib pool instead of a kmalloc to allocate a fib for the
+	  processing of an AIF.
+
+install.sh:
+	- Install driver into any forgotten /lib/modules directories.
+
+2003-09-26	Mark_Salyzyn@adaptec.com
+
+commctrl.c + aacraid.h:
+	- AMD-64 and IA-64 management applications will fail, need to change
+	  fibctx to a 32 bit unique value.
+
+Version: 1.1.4-2194
+
+2003-09-29	Mark_Salyzyn@adaptec.com & Mark Haverkamp <markh@osdi.org>
+
+aachba.c:
+	- use linux/blkdev.h for all variants on Linux.
+	- hold on to the host pointer in aac_io_done, because it's reference
+	  in the device and scsicmd can go away after scsi_done is called.
+	- check return value of pci_set_dma_mask.
+
+commctrl.c:
+	- use linux/blkdev.h for all variants on Linux.
+
+comminit.c:
+	- use linux/blkdev.h for all variants on Linux.
+
+commsup.c:
+	- use linux/blkdev.h for all variants on Linux.
+	- drop linux/smp_lock.h include as it was added in a debug test from
+	  some time ago.
+	- Added current 2.6 kernel support routines for rescanning.
+
+dpcsup.c:
+	- use linux/blkdev.h for all variants on Linux.
+
+linit.c:
+	- use linux/blkdev.h for all variants on Linux.
+	- check return value of pci_set_dma_mask.
+	- template->present is no longer relevant in 2.6 based kernels.
+
+rx.c:
+	- use linux/blkdev.h for all variants on Linux.
+
+sa.c:
+	- use linux/blkdev.h for all variants on Linux.
+
+rkt.c:
+	- use linux/blkdev.h for all variants on Linux.
+
+2003-10-01	Mark_Salyzyn@adaptec.com
+
+commsup.c:
+	- needed a fib_dealloc call ahead of the fib_free call added when
+	  we moved over to the fib pool to handle the AIFs.
+
+dpcsup.c:
+	- need to use the `local' fibctx so that the AIF command can be
+	  acknowledged.
+
+commctrl.c:
+	- return error status from the send_fib function in ioctl_send_fib.
+
+2003-10-07	Mark_Salyzyn@adaptec.com
+
+aachba.c + linit.c:
+	- serial number contains the cookie (fafa0001) that is at index 1
+	  of the serial number element. Only show the serial number which
+	  is at index 0.
+
+linit.c:
+	- Added registration to receive 32 bit ioctls.
+
+commsup.c + dpcsup.c + aacraid.h:
+	- Dropped code to acquire AIF's from the general FIB pool, it was a
+	  fool's errand. However, we kept the code that limits the AIF's
+	  received and allocated to the AdapterFibsSize / sizeof(hw_fib).
+	  The `last' AIF hw_fib is used to quickly acknowledge the entries,
+	  and drop the results on the floor.
+
+rx.c + rkt.c:
+	- Cache the OIMR data in dev->OIMR, it looks remarkably like irq_mask,
+	  which is really unused, but we can clean that up later.
+
+2003-10-08	Matthew Wilcox <willy@debian.org>
+
+aachba.c:
+	- Use SCp.dma_handle instead of SCp.ptr for holding on to the physical
+	  address of the allocated pci_map_single as part of the request.
+
+compat.h:
+	- define dma_handle to be ptr (in support of SCp.dma_handle change
+	  above) for kernels that do not define this member.
+
+2003-10-08	Christoph Hellwig <hch@infradead.org>
+
+aachba.c:
+	- drop use of scsi_to_pci_dma_dir() as it is a pass-through in all
+	  versions of the kernel.
+
+2003-10-09	Mark_Salyzyn@adaptec.com
+
+linit.c:
+	- When an Adapter Reset is requested, wait up to 60 seconds for all
+	  outstanding commands to complete and report SUCCESS.
+
+Version: 1.1.4-2221
+
+2003-10-09	Mark_Salyzyn@adaptec.com
+
+linit.c:
+	- Waited for *all* commands to complete for *all* devices on the
+	  controller when an Adapter Reset is requested.
+
+Version: 1.1.4-2222
+
+2003-10-10	Mark_Salyzyn@adaptec.com
+
+aacraid.h + rx.c + rkt.c + sa.c + linit.c:
+	- Added a aac_adapter_check_health, make sure the adapter is healthy
+	  when performing and Adapter Reset request, report error codes.
+
+aachba.c:
+	- revert to use of scsi_to_pci_dma_dir() as it is not a pass-through in
+	  all versions of the kernel.
+
+linit.c:
+	- SCSI_HAS_HOST_LOCK means that we should be working with releasing
+	  host->lock or host->host_lock instead of io_request_lock surrounding
+	  scsi_sleep.
+
+aacraid.h:
+	- Added definition for AAC_MAX_HOSTPHYSMEMPAGES
+
+comminit.c:
+	- Utilized AAC_MAX_HOSTPHYSMEMPAGES to limit the number of open DMA
+	  4096 byte PAGES of memory requested by the operating system.
+
+2003-10-16	Mark_Salyzyn@adaptec.com
+
+install.sh:
+	- Added support for x86_64 installs
+
+aachba.c:
+	- used SENSE KEYS from scsi.h rather than our own definitions.
+
+2003-10-20	Xose Vazquez Perez <xose@wanadoo.es>
+
+linit.c:
+	- Added pci_ids for 0x10110046/0x90050365
+
+Version: 1.1.4-2265
+
+2003-10-23	Mark_Salyzyn@adaptec.com
+
+linit.c:
+	- no need to set template->present as this is done by the SCSI layer.
+
+2003-10-24	Mark_Salyzyn@adaptec.com
+
+install.sh
+	- Added support for SuSE kernel determination for finer selection
+	  of modules
+	- If the kernel is compiled for athlon, use that instead of
+	  /proc/cpuinfo
+	- if /proc/cpuinfo is not present, don't show any errors during
+	  install
+
+2003-10-28	Mark_Salyzyn@adaptec.com
+
+install.sh
+	- The entire class of SuSE OS releases (sles7, sles8, suse7, suse8,
+	  suse8.1, suse8.2, ul1, ul1-sp2a) place the driver module results into
+	  /lib/modules/[kernel]/kernel/drivers/scsi/aacraid/aacraid.o. The
+	  package places updates in ...//scsi/aacraid.o (note, one directory
+	  up). The module selected for use in the mkinitrd is fed via a `find'
+	  command which reports files in raw directory order which in the
+	  reiser file system would be in the .../scsi directory, but for EXT2
+	  since the file was added later, would prefer the previously placed
+	  product in ../scsi/aacraid/aacraid.o. The fix is to have the driver
+	  disk post-install remove the older .../scsi/aacraid directory.
+
+2003-10-30	Mark_Salyzyn@adaptec.com
+
+install.sh
+	- For the installations to `extra' /lib/modules directories beyond
+	  the boot set, take the processor clue from the postscript (-athlon,
+	  -x86_64 or -ia64) rather than from /proc/cpuinfo.
+
+Version: 1.1.4-2282
+Version: 1.1.4-2292 (Debug)
+
+2003-10-31	Mark_Salyzyn@adaptec.com
+
+aacraid.h + aachba.c:
+	- Added a nested count to the fsa_scsi_dev structure since some kernels
+	  before 2.4.19 have troubles overflowing their stack when a device
+	  goes offline. The issue is that the SCSI done call nests into sending
+	  another queued command, which in turn spoofs a response back
+	  indicating failure which in turn calls SCSI done. We limit the
+	  nesting to 64 commands before we respond with a busy instead.
+
+Version: 1.1.4-2296 (Debug)
+
+linit.c & .version:
+	- Versioning is defined by the structure:
+	    struct {
+		unsigned char dash; // Dash version number
+		unsigned char type; // Type, 1=Devo, 2=Alpha, 3=Beta, 4=Release
+		unsigned char minor;// Minor version minor
+		unsigned char major;// Major version number
+	    }
+	  Adjusted version data to match this definition for generation and
+	  support.
+
+Version: 1.1.4-2299
+Version: 1.1.4-2301
+Version: 1.1.4-2302
+Version: 1.1.4-2303
+
+linit.c & aacraid.h:
+	- Allow 64 bit apps to call GET_NEXT_ADAPTER_FIB ioctl directly,
+	  promoting 32 bit apps when they call.
+
+aachba.c & aacraid.h:
+	- Set MAX_NESTED to 1, and improve code to reflect this simplicity.
+
+install.sh:
+	- Handle name change of products from *-athlon-athlon to *-athlon.
+	- Warn the user if the initrd shrinks too much
+
+Version: 1.1.4-2308
+
+install.sh:
+	- Add support for identifying 2.4.19-340 kernels.
+
+2003-12-12	Mark Haverkamp <markh@osdl.org>
+
+linit.c:
+	- updated aac_eh_reset to use __shost_for_each_device now that the
+	  device element is now private and we're supposed to use the helper
+	  function for access.
+
+Version: 1.1.4-2309
+Version: 1.1.4-2310 (debug)
+
+2003-12-18	Mark Salyzyn <Mark_Salyzyn@adaptec.com>
+
+linit.c:
+	- suppress unused variable warning in debug code.
+	- cast sys_ioctl when registering as it does not match prototype
+	  argument for ioctl32 registration.
+
+Version: 1.1.4-2311
+
+2003-12-22	Mark Haverkamp <markh@osdl.org>
+
+aachba.c:
+	- change from pae to dac as this is the more public understanding of
+	  the 64 bit support concepts.
+aacraid.h:
+	- Remove padding and SavedIrql
+commsup.c + aachba.c:
+	- use atomic_read when accessing access_count member of device
+	  structure.
+linit.c & aacraid.h
+	- iminor takes the inode, not the inode->i_rdev member.
+
+Version: 1.1.4-2313
+
+aachba.c + commsup.c:
+	- use device_busy, shost_status, in_recovery instead of just
+	  access_count. Adjust for each OS release variant.
+
+Version: 1.1.4-2314
+
+2003-12-22: Ken Beaty <ken@nova.org>
+
+aachba.c + commsup.c:
+	- Adjusted ifdefs for kernel version to make more sense.
+
+2004-01-24: Mark Salyzyn <Mark_Salyzyn@adaptec.com>
+
+install.sh:
+	- Altered script to discover prebuilt binaries from the classic
+	  Adaptec rpm package, the Red Hat install disk format, or the
+	  SuSE install disk format.
+
+2004-02-09: Christoph Hellwig <hch@lst.de>
+
+aachba.c:
+	- Remove fsa_dev structure since fsa_dev is always available.
+
+Version: 1.1.4-2324
+
+2004-02-10: Submit to scsi list for inclusion
+
+2004-02-17: Herve MORILLON <hmorillon@doremilabs.fr> + Mark_Salyzyn@adaptec.com
+
+rx.c + rkt.c:
+	- hit doorbell before processing host_command_normal
+
+aachba.c:
+	- Permit requests larger than 64KB
+
+aacraid.h:
+	- Permit 512 outstanding requests
+
+Version: 1.1.5-2326
+
+linit.c + build:
+	- Added support for vary_io, unfortunately the build system also needed
+	  to be adjusted to generate the SCSI_HAS_VARY_IO if the member is
+	  seen in the drivers/scsi/hosts.h file.
+
+build + install.sh:
+	- Added support for 2.4.19-189, 2.4.19-191 and 2.4.19-201 SuSE Kernels
+
+Version: 1.1.5-2327
+
+rkt.c + rx.c:
+	- Added support to issue the Temperature sync command. Since the
+	  cost of the sync command should not increase, the decision was
+	  made to support a `varargs' approach to dealing with the additional
+	  temperature elements *only* for this command.
+
+linit.c:
+	- Added a proc write that accepts the string "Temperature=[0-9.],..."
+	  to send the off-board temperature value to the Firmware so that it
+	  may be integrated into the Enclosure Data.
+	- Added SkyHawk SATA cards to device list. 2020S changes now to 
+	  2020ZCR, and we add 2020SA.
+
+aachba.c:
+	- PERCRAID RAID-5 is superfluous, changed to to PERC RAID-5.
+
+Version: 1.1.5-2328
+
+linit.c + aacraid.h:
+	- Migrate towards using CONFIG_COMPAT instead of __x86_64__
+
+rx.c + rkt.c:
+	- Added support to pick up an Adapter Blink code. ADPmp64499.
+
+linit.c:
+	- Report the Adapter Blink code to the console log. ADPmp64499.
+
+build:
+	- Correctly built the x86_64 SLES8 and ul1 driver disk. Side effects
+	  discovered also fix problems with ia32 SLES8 install. ADPmp64499.
+
+Version: 1.1.5-2329
+
+linit.c + aacraid.h:
+	- Report an AifExeFirmwarePanic AIF message to applications when the
+	  adapter is in a blinkled state.
+
+aachba.c + commsup.c: Brad House <brad@mainstreetsoftworks.com>
+	- use shost_for_each_device instead of list_for_each_entry.
+
+linit.c + aachba.c:
+	- xscale (arm) systems can not have highmem_io set as virtual/phys
+	  handling does not recognize the page/offset addressing.
+
+rkt.c + rx.c:
+	- The Mailbox[7] in none BBS systems is not active until shortly
+	  before the Firmware kernel is booted. The Outbound Message register
+	  is always active and contains the same bringup conditions. We must
+	  look at the OMR during the *_init wait.
+
+Version: 1.1.5-2330
+
+rkt.c + rx.c + sa.c:
+	- Set the time by using get_seconds (epoch January 1 1970) instead
+	  of jiffies/HZ (epoch machine startup). get_seconds is provided
+	  for kernels < 2.6.
+
+Version: 1.1.5-2331
+
+rkt.c:
+	- Mailbox[7] becomes momentarily inaccessible right after PATUWAIT
+	  on the Callisto, lets loop on OMR only. Do not know if this
+	  problem exists on other systems.
+
+Version: 1.1.5-2332
+
+aachba.c + linit.c:
+	- Issue CT_COMMIT_CONFIG before issuing the VM_NameServe. This is
+	  for systems that do not have a BIOS to perform this step.
+
+Version: 1.1.5-2333
+
+aacraid.h:
+	- SAS requires the ability to handle as many as 32 Adapters in a
+	  system, increased the manifest that limits the number of Adapters.
+	- Testing has shown that allowing 33MB I/O can starve a machine, so
+	  we are limiting the maximum I/O size to 4MB (to match other drivers
+	  that permit large I/O).
+
+linit.c:
+	- Make sure that the driver does not register more than
+	  AAC_MAXIMUM_ADAPTERS instances.
+	- Set the queue depth to each device as divided up from AAC_MAX_IO_FIB
+
+commctrl.c: Chris Wright <chrisw@osdl.org>
+	- aac_send_raw_srb added check for bounding of fibsize value.
+
+all: Mark Haverkamp <markh@osdl.org> & Mark Salyzyn <Mark_Salyzyn@adaptec.com>
+	- merge 2.6 driver changes into tree to synchronize.
+
+Version: 1.1.5-2334
+
+aacraid.h+linit.c+commctrl.c+comminit.c:
+	- Added sg_tablesize and max_fib_size to adapter structure and
+	  negotiate these plus Scsi_Host sg_tablesize, can_queue and
+	  max_sectors based on the adapter capabilities.
+
+aachba.c:
+	- Added aac_raw_io command
+	- Recognize that read_callback is identical to write_callback, which
+	  is in turn identical to raw_io's need for a callback. Renamed to
+	  one callback function io_callback.
+
+rx.c+rkt.c+sa.c:
+	- Moved initialization around to permit New Command Interface probes
+	- dropped irq_mask and associated functions.
+	- moved acknowledgement of F/W commands *before* processing so that
+	  we get re-interrupted if a new command is added to the produced
+	  index while we are processing.
+
+linit.c+aachba.c:
+	- Do not print `bad0' for the serial number
+
+linit.c:
+	- this_id = 32, because it gets in the way of Container 16 being
+	  processed.
+
+aachba.c:
+	- scsi_add_timer call issued just before completion routine called
+	  since error recovery handler is there *just* to detect card
+	  failure and not to affect command processing.
+
+build:
+	- Added 2.4.19.SuSE-343 kernel in support of ul1-sles8-ia32 install,
+	  which adds yet another installation floppy to the list.
+
+Version: 1.1.5-2335
+
+linit.c+all:
+	- Revert temporarily to 1.1.4-2177, Changed ASR-2020S to ASR-2020ZCR,
+	  and ASR-2020S Terminator to ASR-2025ZCR.
+
+Version: 1.1.4-2336
+
+linit.c+all:
+	- Revert temporarily to 1.1.4-2322, Changed ASR-2020S to ASR-2020ZCR,
+	  and ASR-2020S Terminator to ASR-2025ZCR.
+
+Version: 1.1.4-2337
+
+all:
+	- Revert back to 1.1.5 code base.
+
+commsup.c:
+	- Fix Irq Moderation code. A Misnomer, since this is really a PCI
+	  utilization moderation, interrupts are not recurring on F/W.
+
+comminit.c:
+	- Turn on Irq Moderation feature (Tentatively 30% reduction in Host
+	  CPU utilization)
+
+Version: 1.1.5-2337
+
+aacraid.h+commsup.c+dpcsup.c+comminit.c+rx.c:
+	- Added support for the new comm interface.
+
+linit.c:
+	- Added debug information to proc output
+
+Version: 1.1.5-2338
+
+commsup.c: Mark Haverkamp <markh@osdl.org>
+	- Added scsi/scsi_device.h, scsi/scsi_driver.h to include file set
+	- set removable to a value of 1, not to TRUE.
+
+aachba.c: Mark_Salyzyn@adaptec.com
+	- Switch to using max_fib_size rather than FIB_DATA_SIZE_IN_BYTES,
+	  this permits SAS management applications to send ioctl FIBs larger
+	  than 512 bytes in size to adapters that accept larger FIBs.
+	- Added support for SAI_READ_CAPACITY_16, READ_12, WRITE_12, READ_16
+	  and WRITE_16 commands.
+	- Played `tricks' with device_blocked and queue_depth fields in the
+	  scsi_device structure to meter the outstanding commands down when
+	  large sequential activity is detected.
+
+aacraid.h: Mark_Salyzyn@adaptec.com
+	- Remove unused definition of FIB_DATA_SIZE_IN_BYTES.
+
+linit.c:
+	- Setting the maximum number of I/O requests/device to a maximum of
+	  256 would act in the SCSI layer as only allocating to permit 1 I/O
+	  for each device.
+
+Version: 1.1.5-2339
+
+build: Mark_Salyzyn@adaptec.com
+	- Added support for 2.6.4-52 SuSE 9.1 Pro install
+	- Added support for multiple architectures for 2.4.21-15.EL RHEL3 QU2
+	  install.
+
+aacraid.h+aachba.c+linit.c: Mark Haverkamp <markh@osdl.org>
+	- Define 2131 as FSACTL_GET_CONTAINERS
+
+commctrl.c: Adam Manthei <amanthei@redhat.com>, Mark_Salyzyn@adaptec.com
+	- change all printk() to dprintk(()) as this is a user initiated
+	  call for aac_send_rw_srb & aac_get_pci_info.
+
+rx.c+rkt.c: Adam Manthei <amanthei@redhat.com>, Mark_Salyzyn@adaptec.com
+	- use pci_alloc_consistent/pci_free_consistent instead of an
+	  unchecked combination of kmalloc(,_GFP_DMA)/pci_map_single/
+	  pci_unmap_single/kfree.
+
+Version: 1.1.5-2340
+
+linit.c+commctrl.c: Mark Haverkamp <markh@osdl.org>
+	- adjust to reflect linux-scsi submission results
+
+aachba.c: Mark_Salyzyn@adaptec.com
+	- remove print for unhandled commands into a debug print. The
+	  unhandled commands are reported to the caller as unhandled, let
+	  the caller deal with this.
+
+rx.c+rkt.c+sa.c: maximilian attems <janitor@sternwelten.at>
+	- upon failure of the init routine, make sure that the registered
+	  interupt handler is deregistered.
+
+commsup.c:
+	- fib_adapter_complete is supposed to free the hw_fib and that is it,
+	  it tried to talk to hardware and caused a lockup.
+
+Version: 1.1.5-2341
+
+build:
+	- use aacraid.ko for 2.6 releases
+
+Version: 1.1.5-2342
+
+aachba.c: Mark_Salyzyn@adaptec.com
+	- added support for a module parameter 'commit=1' to enable COMMIT
+	  CONFIG to be issued to the adapter.
+	- added support for a module parameter 'coalescethreshold=16' which
+	  sets the maximum block size to consider for pushing back to the
+	  scsi_merge layer.
+	- added support for a module parameter 'acbsize=8192' which sets the
+	  suggested fib size to override the suggestion from Firmare.
+	- dropped call to scsi_add_timer, as it causes a panic. It was placed
+	  in the source to resolve a command completion race condition.
+
+Version: 1.1.5-2343
+
+install.sh: Mark_Salyzyn@adaptec.com
+	- globbing issue caused more whiny complaints about a missing
+	  installation into the initrd.
+	- fixed some issued surrounding using the script for SuSE module
+	  update.
+
+linit.c: Mark_Salyzyn@adaptec.com
+	- if the driver does not discover any targets, report failure.
+	- drop kernel_version hack to support build
+
+build: Mark_Salyzyn@adaptec.com
+	- Use vermagic instead of kernel_version to pick up matching kernel.
+	- when innoculating 2.6 tree builds, one needs a *full* compile in
+	  order to generate the struct_module member.
+	- use module.ko for 2.6 kernels.
+
+Version: 1.1.5-2344
+
+build: Mark_Salyzyn@adaptec.com
+	- floppy linux/suse/${ARCH}-${VERS}/modules/${PRODUCT}.o needs to be
+	  a ${PRODUCT}.ko in the 2.6 based installations.
+	- Placed module in both scsi and scsi/${PRODUCT} directories as it
+	  appears that the post-install is not functioning properly.
+
+aachba.c: Mark_Salyzyn@adaptec.com
+	- Checked if the lba exceeds 32 bit block address for systems that
+	  can not support it. raw_io_64 enables 64 bit block addresses.
+	- Redid math for u64 >> 32 as it appears the xscale 64 bit library
+	  is flawed.
+
+Version: 1.1.5-2345
+
+aachba.c: Mark_Salyzyn@adaptec.com
+	- Overrides to force 8KB fibs needs to be reverted to defaults.
+
+Version: 1.1.5-2346
+
+build: Mark_Salyzyn@adaptec.com
+	- Added 2.4.21-15.0.2.EL kernel
+	- Added 2.6.5-7.97 kernel to the build (SLES9 Gold)
+
+rx.c+rkt.c: Mark_Salyzyn@adaptec.com
+	- Mailbox7 continues to be a consternation regarding reliable
+	  adapter recovery scenarios; switched to using OMRx[0].
+
+Version: 1.1.5-2347
+
+aachba.c: Mark_Salyzyn@adaptec.com
+	- (u64)=((u8)<<24) does not give expected results, sign extension
+	  occurs. Replace with (u64)=((u64)(u8)<<24)
+
+Version: 1.1.5-2348
+
+install.sh: Mark_Salyzyn@adaptec.com
+	- initrd is blocked from incorporating our product if there is
+	  something in /lib/modules/${OS}-${CONFIG}/update/${PRODUCT}.o,
+	  so remove the file.
+
+Version: 1.1.5-2349
+
+aachba.c+aacraid.h:
+	- define commit_config FIB command
+	- define get_container_count FIB command.
+
+aachba.c+aacraid.h+commsup.c+linit.c
+	- fsa_dev becomes a dynamic structure to accommodate a variable
+	  maximum_num_containers.
+
+build:
+	- Added 2.4.21-231 kernel to build system.
+
+linit.c:
+	- Turned on debug printing of scsi timeouts for xscale only.
+
+Version: 1.1.5-2350
+
+rkt.c:
+	- Limit can_queue to 246 for rocket
+
+build:
+	- Added 2.4.19-306 kernel to build system.
+
+aachba.c:
+	- Removed an innocuous (obnoxious?) DEBUG printk
+
+2004-07-15: Mark Salyzyn <Mark_Salyzyn@adaptec.com>
+
+Version: 1.1.5-2351
+
+build:
+	- Added 2.4.9-31 to the build system
+
+module.equiv:
+	- Added 2.4.9-e.41, 2.4.9-e.43, 2.4.21-17.EL & 2.4.21-15.0.3.EL kernels
+
+build:
+	- Dropped 2.4.21-231 from build
+
+2004-07-16: Mark Salyzyn <Mark_Salyzyn@adaptec.com>
+
+Version: 1.1.5-2352
+
+build:
+	- Added 2.6.3-7mdk to the build system
+
+2004-07-20: Mark Salyzyn <Mark_Salyzyn@adaptec.com>
+
+Version: 1.1.5-2353 (7t Build w/o SLES9, SuSE9.1 & SuSE9 errata 231)
+Version: 1.1.5-2354 (7t Build w/o SLES9 & SuSE9 errata 231)
+Version: 1.1.5-2355 (BigQual refresh)
+
+install.sh:
+	- If missing, add a reference to the module to the kernel's module.dep
+	  file (affects drivers that are *not* shipped with the OS; HostRAID
+	  and some dpt_i2o)
+
+aachba.c:
+	- for __arm__ build, the default FIB size is selected by F/W and not
+	  overridden to 8192 bytes.
+
+Version: 1.1.5-2356 (Jupiter)
+
+aacraid.h+comminit.c+rkt.c+commsup.c+linit.c: Ken Sandars <Ken_Sandars@adaptec.com> + Mark Salyzyn
+	- Added AAC_NUM_MGT_FIB, and ensured can_queue represents the
+	  maximum number of I/O commands allowed and not be confused as the
+	  maximum number of FIB commands permitted into the Adapter. Thus
+	  host->can_queue is the maximum number of I/O commands, AAC_NUM_MGT_FIB
+	  is the maximum number of ioctl commands (set to 8 rather than legacy
+	  of 64) and init->MaxIoCommands sent back to the adapter is the total
+	  number of FIBs.
+
+Version: 1.1.5-2357 (Jupiter+BigQual)
+
+commctrl.c: Mark Salyzyn
+	- Added support for issuing FIBs that are larger than the negotiated
+	  size for the management interface.
+
+linit.c: Mark Salyzyn
+	- Added ASR-2240S, ASR-4005SAS, ASR-4000SAS, ASR-4800SAS, ASR-4805SAS
+	  and AAR-2610SA to the product list.
+
+install.sh: Mark Salyzyn
+	- Fixed problems with using the RH & SuSE modules disk as an update
+	  media, most of which was the selection of the extraction name from
+	  the modules.cgz file or acquiring the appropriate update.tar.gz file.
+
+build: Mark Salyzyn
+	- set 700 for update.sh in the modules disks to recognize at least
+	  that the RH modules disk works as an update media.
+
+aachba.c: Mark Salyzyn
+	- Dropped to 8K for the coalesce threshold for xscale builds.
+
+Version: 1.1.5-2358 (BigQual+7t)
+
+aachba.c+commctrl.c+aacraid.h+comminit.c+commsup.c+dpcsup.c+linit.c:
+	- Merged 2.6.8-rc2-bk9 differences into the driver (COSMETIC)
+
+compat.h
+	- Added definition for __user for kernels less than 2.5 (COSMETIC)
+
+linit.c:
+	- The aac_get_next_adapter_fib_ioctl for 64 bit implementations under
+	  2.6 maladdressed the transfer.
+
+Version: 1.1.5-2359 (BigQual+SPOCK+7t)
+
+commctrl.c:
+	- Added support for CODE_STREAM_IDENTIFIER, accessed via a new
+	  ioctl FSACTL_GET_VERSION_MATCHING
+	- Added support for FSACTL_SEND_LARGE_FIB
+
+aacraid.h:
+	- Added definition for struct VersionMatch
+	- Added definition for FSACTL_GET_VERSION_MATCHING
+	- Added definition for FSACTL_SEND_LARGE_FIB
+
+install.sh:
+	- if the modules.dep file does not exist, then ensure no complaints
+	  are made about mv not being able to access the file.
+	- If an entry is missing in modules.dep, construct it correctly.
+
+aachba.c:
+	- Remove any leading spaces from the Container Name. Ensure that
+	  if there is no container name remaining, to leave the existing
+	  one alone.
+
+build:
+	- Added support for 2.4.18-e.43
+	- Added support for 2.4.18-e.47
+	- Added support for 2.4.9-e.48
+	- Added support for 2.4.9-e.49 (RHAS 2.1 QU5)
+	- Added support for 2.4.21-15.0.4.EL
+
+rx.c+rkt.c:
+	- When responding to AIFs, use DoorBellAdapterNormRespReady instead of
+	  DoorBellAdapterNormCmdReady. The code appeared to work without
+	  undue side effects because Firmware would clear off the queues
+	  when new AIFs are delivered.
+
+commsup.c:
+	- If busy, defer scan action to next AIF. Half hearted attempt to
+	  improve the reliability of this unsupported feature.
+
+aacraid.h+linit.c+comminit.c+rx.c+rkt.c+sa.c:
+	- Remove references to Mailbox7 accesses for synchronous commands.
+
+aacraid.h+aachba.c:
+	- Turned on support for Compatibility ID testing. Only enabled if
+	  the build environment defines CODE_STREAM_IDENTIFIER.
+	- Fortify the adapter information to include supplemental information
+	  as well as the GetBusInfo in support of SAS programatic limits.
+
+linit.c+aachba.c:
+	- Use the newly acquired supplement information vendor and product
+	  fields to override the cardtype selection.
+
+Version: 1.1.5-2360
+Version: 1.1.5-2361 (Branch off 1.1.5-2340 in RHEL3 QU3 with aac_info fix in 1.1.5-2364)
+
+linit.c:
+	- register a reboot notifier to flush adapter
+	- faked AIF needs to call fib_init() later (ADPmp70525)
+
+commctrl.c:
+	- Since kfree has the possibility of switching in some esoteric
+	  variants of the kernel, and since the BKL is held during ioctl
+	  calls, we are unlocking the fib lock around these system calls.
+
+Version: 1.1.5-2362
+
+build:
+	- Added support for 2.4.21-17.EL (RHEL3 QU3 beta)
+	- Added support for 2.4.21-20.EL (RHEL3 QU3)
+	- Added support for 2.6.7-1.451.2.3 (RHEL4 alpha 4)
+
+linit.c:
+	- ASR4000 series entries were flawed in the indexes. Added an
+	  additional 8i entry.
+
+Version: 1.1.5-2363
+
+linit.c:
+	- aac_info is flawed and causes periodic panics in certain systems.
+
+build:
+	- Allow the build system to operate as background build
+	- em64t/ia32e binaries did not show in the rpm
+
+Version: 1.1.5-2364 [BigQual, Pratt, Jupiter Dual & 7t]
+
+linit.c:
+	- AAR-2610SA has had a subproduct change from 0x103C/0x0295 to
+	  0x103C/0x3227.
+	- Some adapters have internal limits of 34 SG elements as a result
+	  of a bug of not splitting requests up when cache is disabled when
+	  sending them to the CHIM. Created a quirk for the adapters that
+	  have this limit.
+
+Version: 1.1.5-2365
+
+aachba.c:
+	- Neglected to add maximum_num_physical check to the srb handler.
+	- leading space on inquiry code was flawed as a result of a typographic
+	  error (replace ! with *)
+
+linit.c:
+	- ASR-4005SAS for IBM is designated as an 8i (ADPmp71521)
+	- Added check for late completion of command during timeout
+	- called aac_get_fw_debug_buffer() after init
+
+fwdebug.c+fwdebug.h
+	- Added firmware debug print handlers
+
+build:
+	- RH floppy disk was limited to 864KB, let it open up to 1.4MB. The
+	  risk is that 864KB was about all the ramdisk could handle when
+	  extracting, so we will no longer get a report of disk overrun as
+	  a warning to existing OS releases. We do not know what will overload
+	  the ramdisk during install. (ADPmp72476)
+	- Product ID list for aacraid is broken in the build due to changes
+	  resulting from incorporating the 2.6 tree.
+	- em32t binaries did not show in the rpm fix broke SuSE releases that
+	  utilize the 2.4.19 kernel (ADPmp73104)
+
+commsup.c:
+	- Added support for sending the time every 30 minutes.
+
+Version: 1.1.5-2366
+
+commctrl.c:
+	- Fixed 64 bit version of the SCB ioctl call as it was not translating
+	  the 32 bit scatter-gather correctly for scatter gather elements
+	  beyond the first one. Do not believe this issue presented a problem
+	  for any Adaptec management products due to their needs as they
+	  limited their SG to only one entry.
+
+build:
+	- Added 2.4.19-238
+	- Added 2.4.19-241
+	- Added 2.4.19-248
+	- Added 2.4.19-251
+
+Version: 1.1.5-2367
+
+linit.c:
+	- Added Themisto discovery to driver
+	- Added AAC_QUIRK_MASTER and AAC_QUIRK_SLAVE to deal with controller
+	  pairs.
+	- Changed Prowler "ESD SO-DIMM PCI-X SATA ZCR" to "ASR-2026ZCR".
+	- Return FAILED when hba_reset completed, the ten second bus settling
+	  delay is counter productive.
+
+aacraid.h+linit.c: Christoph Hellwig <hch@lst.de>
+	- drop casting surrounding iomap and ioremap and use the __iomem
+	  type enhancement.
+
+csmi.c+csmi.h:
+	- Added CSMI ioctl support.
+
+install.sh:
+	- log both successful and failed installations and limit complaints
+	  about installation to a minimum by not repeating similar failure
+	  messages.
+
+aachba.c:
+	- vtune reports that 2% of the time dealing with read calls was
+	  devoted to get_sd_devname(). Optimized codepath.
+
+Version: 1.1.5-2368
+
+build:
+	- Added 2.4.27 debian smp kernel to build
+	- Added 2.6.7-1.451.2.3 RHEL4 alpha 4 to the build
+	- Added 2.6.8-1.602 RHEL4 beta 1 to the build
+	- Added 2.6.5-7.109.5 SuSE 9.1 errata to the build
+
+csmi.h:
+	- Changed from CSMI_8_BYTE_ALLIGNED to CSMI_8_BYTE_ALIGNED
+
+csmi.c:
+	- failure on return from copy_to_user is ignored, but (void) is
+	  not the way to ignore it based on compiler warnings.
+	- scb size is set to 16 always.
+	- scb flags is set to 0 always.
+
+linit.c+compat.h:
+	- scsi_sleep() renamed to ssleep() in 2.6.9 kernel
+
+commctrl.c:
+	- 32 bit application issuing a raw srb in a 64 bit address space
+	  is not handled correctly for the fibsize calculation.
+	- Limit the number of scatter gather entries to 32, and zero
+	  out the references to those sg entries.
+
+Version: 1.1.5-2369
+
+compat.h:
+	- 2.6.8-1.602 RHEL4 beta 1 kernel looks more like 2.6.9, so needed to
+	  define scsi_sleep for kernels 2.6.8 and up rather than 2.6.9 and up.
+
+linit.c: Chris Trown <ctrown@uoregon.edu>
+	- Added an include for linux/delay.h to pick up the definition of
+	  ssleep().
+	- Added `other' Themisto ID to list.
+
+csmi.h:
+	- bumped to 0.83 version
+
+csmi.c:
+	- Acquired slot number from Supplementary Adapter Info SlotNumber
+	  field
+	- Added support to determine the actual bus type (SAS, SATA, Other).
+
+build:
+	- Added support for 2.4.21-22.EL (RHEL3 errata)
+	- Added support for 2.6.5-7.111 (SLES9 NLD)
+	- Added support for 2.4.21-243 (SuSE 9.x errata)
+
+aachba.c:
+	- valid must clear if VM_Nameserve fails on scan
+	- setinqstr has the possibility of overflowing the inquiry structure,
+	  the results are a damaged stack.
+
+commsup.c:
+	- do a probe_container before issuing scan as the adapter can take
+	  some time to write DDF data (not SCSI).
+
+aacraid.h:
+	- added definition of probe_container.
+
+Version: 1.1.5-2370
+
+aacraid.h+commsup.c+aachba.c+commctrl.c+comminit.c+linit.c+sa.c: Adrian Bunk <bunk@stusta.de>
+	- Make some needlessly global code static
+
+linit.c:
+	- Added Intruder (AAR-2420SA, AAR-2620SA & AAR-2820SA)
+
+aachba.c+commsup.c:
+	- Enable a 50 second timeout on the first asynchronous command to
+	  permit the driver to error out and report the hardware failure.
+
+linit.c:
+	- Fixed a comment completion problem for Intruder additions.
+
+build:
+	- Added support for 2.6.8-24 (SuSE 9.2)
+
+Version: 1.1.5-2371
+
+aachba.c: Jens Axboe
+	- Use a busy status return with scsi_done rather than -1 to
+	  signal OS to try again later for aac_read and aac_write to
+	  meet with acceptable coding standards.
+
+aachba.c+linit.c: Mark Salyzyn & Christoph Hellwig <hch@infradead.org>
+	- Moved AAC_EXTENDED_TIMEOUT to set sdev->timeout instead of
+	  inline for every command in the 2.6 variant.
+
+linit.c:
+	- There is a subsystem device id clash between SATAHAWK and INTRUDER
+	  and is giving the BIOS group some grief. Therefore the subsystem
+	  device ID for intruder is changed to 029B, 029C and 029D for 8, 6,
+	  and 4 port versions respectively.
+	- Added FSACTL_GET_VERSION_MATCHING and FSACTL_SEND_LARGE_FIB ioctls to
+	  list of supported 32 bit ioctl calls.
+
+build:
+	- enhanced README.txt to also provide a brief description of the
+	  binary file.
+	- Added support for a RHEL3 i686 ISO image as well.
+	- Added support for 2.6.5-7.109.12 (SLES9/SuSE9.1 SP1 B2 i386)
+	- Added support for 2.6.5-7.109.13 (SLES9/SuSE9.1 SP1 B2 x86_64)
+	- Added support for 2.6.5-7.115 (SLES9/SuSE9.1 SP1 B3)
+	- Added support for 2.6.5-1.358 (RH FC2)
+	- Added support for 2.6.9-1.667 (RH FC3)
+	- Added support for 2.4.21-260 (SuSE 9 errata)
+	- Added support for 2.4.21-261 (SuSE 8 errata)
+
+csmi.c:
+	- return code for CSMIGetSATASignature is under the control of the
+	  firmware and should not be blindly set to SUCCESS if the command
+	  succeeded.
+
+
+Version: 1.1.5-2372
+
+build:
+	- Added support for 2.6.9-1.648_EL (RHEL4 beta 2)
+
+linit.c:
+	- trim space from Model
+
+install.sh:
+	- Add /etc/modprobe.conf as another modules configuration file.
+	- If the module in the initrd does not match, but has the same
+	  `size' values, then report a `possibly stripped' warning message.
+
+Version: 1.1.5-2373
+
+build:
+	- Use "Avon Park SIT" for this build for the version identifier
+
+commsup.c:
+	- enable scsi-scan-single (ADPmp75534 & ADPmp69336)
+
+Version: 1.1.5-2374
+
+build:
+	- Added support for 2.6.5-7.111.5 (SLES9 NLD errata)
+	- Added support for 2.6.5-7.128 (SLES9 SP1 B4)
+	- Added support for 2.6.5-7.134 (SLES9 SP1 RC)
+	- Added support for 2.6.9-1.906_EL (RHEL4 RC)
+
+commsup.c:
+	- disable scsi-scan-single for 2.6 kernels, proc_scsi no longer
+	  exported
+
+install.sh
+	- Missed a double quote in the scripting to reduce size sensitivity.
+
+Version: 1.1.5-2375 (Avon Park SIT)
+
+csmi.c:
+	- Paramters.uFlags is a bit field, not a state.
+	- cdbLength needs to be hard coded to 14 from 16 (beware, 2TB warning).
+	- Set the srbFlags based on data direction or if there is any data to
+	  send at all (HOST_FLAGS_DATA_IN/DATA_OUT/NO_DATA_TRANSFER).
+
+csmi.h:
+	- Added definition for HOST_FLAGS_DATA_IN/DATA_OUT/NO_DATA_TRANSFER.
+
+Version: 1.1.5-2376 (This is a code stream identifier)
+
+linit.c:
+	- Added ICP Lancer products ICP9024R0 and ICP9014R0.
+	- Added include of asm/ioctl32.h
+	- Report ServeRAID for driver name if IBM 8i.
+
+aacraid.h
+	- Added definition for IOP_RESET synchronous command
+
+rkt.c+rx.c+linit.c+aacraid.h+commsup.c+aachba.c+csmi.c+comminit.c+commctrl.c+compat.h
+	- Merged code and style changes in 2.6.10-rc3-bk14 into codebase.
+
+aachba.c:
+	- set the scsi device as removeable during the Read Capacity call.
+	  (ADPmp76369)
+
+pci.ids:
+	- Submitted patch to pci-ids@ucw.cz to update the vital product list
+	  to match the products in the linit.c file (ADPmp77082)
+
+build:
+	- Added support for 2.4.21-20.0.1.EL (RHEL3 errata)
+	- Added support for 2.4.21-27.EL (RHEL3 QU4)
+	- Added support for 2.4.21-27.0.1.EL (RHEL3 errata)
+
+Version: 1.1.5-2377 (Avon Park SIT)
+
+linit.c:
+	- Dropped the maximum number of commands down to 16 per target if on
+	  an x86_64 machine with more than 4GB of memory when built in the
+	  2.4.* environment.
+
+Version: 1.1.5-2378 (CERC Test)
+
+linit.c:
+	- Dropped the maximum number of commands down to 10 per target for
+	  this test.
+
+Version: 1.1.5-2379 (CERC Test)
+
+build:
+	- Added support for 2.6.9-5.EL (RHEL4 RC)
+	- Added support for 2.6.5-7.139 (SLES9 SP1)
+	- Added support for 2.4.9-e.57 (RHAS QU6)
+	- Added support for 2.4.9-e.59 (RHAS QU6 errata 59)
+
+commsup.c:
+	- Added kernel ifdef's to handle scsi_add_target and
+	  scsi_remove_target calls.
+
+aachba.c+aacraid.h:
+	- Added AAC_DEBUG_INSTRUMENT_DAC_CERC to disable 64 bit scatter gather
+	  for only the CERC SR2 product.
+
+Version: 1.1.5-2380 (This is a code stream identifier)
+
+aachba.c+comminit.c:
+	- Added numacb insmod parameter.
+
+aachba.c+aacraid.h
+	- Remove AAC_DEBUG_INSTRUMENT_DAC_CERC code.
+
+build:
+	- Error in incorporating the RHAS2.1 QU6 kernel (2.4.9-e.57) on to the
+	  driver disk (ADPmp78010)
+	- Same problem with RHEL4 RC (2.6.9-5.EL) (ADPmp69861)
+
+Version: 1.1.5-2381 (This is a code stream identifier)
+
+build:
+	- Added support for 2.4.21-273 (SLES 8 errata 273)
+	- Added support for 2.6.5-7.111.30 (SLES 9 errata 30)
+	- Added support for 2.6.8-24.11 (SuSE 9.2 errata 11)
+	- Added support for 2.4.19.SuSE-256 (SLES8 x86_64 errata 256)
+	- Added support for 2.4.21-9.EL (RHEL3 QU1)
+	- Added support for 2.6.8.1-12mdk (Mandrake 10.1)
+	- Added support for 2.6.9-1.11_FC2 (FC2)
+	- Added support for 2.6.10-1.9_FC2 (FC2)
+	- Updated dkms to v2.0.5
+
+commsup.c+aacraid.h
+	- Changed Plug-n-Play state machine to be per-array rather than
+	  per-adapter (ADPmp77096)
+
+Version: 1.1.5-2382 (This is a code stream identifier)
+
+build:
+	- Added support for 2.4.21-276 (SLES8/UL1 SP4 B2)
+	- Added support for 2.6.10-1.8_FC2 (FC2)
+	- Added support for 2.6.10-1.12_FC2 (FC2)
+	- Added support for 2.6.9-1.681_FC3-2.6 (FC3)
+	- Added support for 2.6.9-1.724_FC3-2.6 (FC3)
+	- Added support for 2.6.10-1.737_FC3-2.6 (FC3)
+	- Added support for 2.6.10-1.741_FC3-2.6 (FC3)
+	- Added support for 2.6.10-1.760_FC3-2.6 (FC3)
+
+linit.c:
+	- vmware specifically utilizes the file->private_data. They will be
+	  correcting the problem in future releases thus the fix will work
+	  in both environments being obnoxious^H^H^H^H^H^H^H^H^Hinnocuous in
+	  the later releases.
+
+aachba.c:
+	- vmware has problems with the coalescing code.
+
+commctrl.c:
+	- used sizeof(struct sgmap *) instead of sizeof(struct sgmap) and
+	  misrepresented the size of the srb command truncating the scatter
+	  gather size from the incoming data in 64 bit architectures with
+	  more than 4G of memory populated in the system. (ADPmp78515,
+	  ADPmp78128, ADPmp76236 & ADPmp78228)
+
+Version: 1.1.5-2383 (Avon Park SIT)
+
+Makefile:
+	- Self detect the various SCSI_HAS_* flags rather than depending on
+	  the build system to generate them.
+
+aacraid.h+aachba.c
+	- Added VM_NameServe64
+	- Added capacity64 field to end of the mnt information.
+	- Do not respond to SERVICE_ACTION_IN when card not capable of 64 bit
+	  lba.
+
+commctrl.c:
+	- The srbcmd in 64 bit environments with more than 4GB of memory
+	  are utilizing the sgentry64 elements for the scatter gather, thus
+	  the counts were not parsed correctly when copying the data back
+	  to the user. (ADPmp78846)
+
+build:
+	- Removed support for linux-2.4.21-1.1931.2.349.2.2.ent.RH
+	- Removed support for linux-2.4.21-1.1931.2.393.ent.RH
+	- Removed support for linux-2.4.21-1.1931.2.399.ent.RH
+	- Removed support for debug configurations
+	- Split AS2.1 summit/enterprise from up/smp
+	- pcitable for aacraid driver disk is missing " after the ICP cards
+
+Version: 1.1.5-2384 (Avon Park SIT)
+
+aacraid.h+rkt.c+rx.c+sa.c:
+	- use aac_io_cpu_to_le* and aac_io_le*_to_cpu to deal with perceived
+	  discrepancies in write* and read* I/O handlers.
+
+commsup.c+commctrl.c:
+	- header.Size and header.SenderSize is a 16 bit field, erroneously
+	  handled by 32 bit swap handlers.
+
+commsup.c+comminit.c+commctrl.c+aachba.c+dpcsup.c:
+	- missing swap handlers for various packets.
+
+aachba.c:
+	- When 'first' command times out, return error immediately, do not
+	  fall through.
+
+csmi.c+aachba.c+linit.c:
+	- monitor/kernel/build information from adapter needs to be swapped
+	  in BE architectures.
+
+aachba.c:
+	- Revert 64 bit LBA code
+
+Version: 1.1.5-2385 (Avon Park SIT)
+Version: 1.1.5-2386 (Avon Park SIT, revert to 1.1.5-2383, plus one managment change)
+
+aachba.c+linit.c+compat.h: Tobias Klauser <tklauser@nuerscht.ch>
+	- Use the DMA_{64,32}BIT_MASK constants
+
+linit.c:
+	- scsi_host_alloc calls scsi_register which prints a report in some
+	  versions of the 2.4 kernel. The aac_info function is not ready to
+	  be called at that time as the hostdata has not been set up, so we
+	  report a 'default' name of "AAC" (ADPmp78060).
+
+aacraid.h+aachba.c:
+	- Adding any u64 to a structure will cause, in some cases of the
+	  compiler, 8 byte alignment constraints which can reshape the
+	  structure at each element even before the u64 definition. Changed to
+	  using a pair of u32's for capacity64 element in the mount structure.
+	  (ADPmp79142)
+
+Version: 1.1.5-2387 (This is a code stream identifier)
+
+build:
+	- Added support for 2.4.21-277 (SLES8/UL1 SP4 RC1)
+
+aacraid.h+rx.c+rkt.c+sa.c+linit.c+Makefile:
+	- Added support for dump_poll. Currently RHEL4 and RHFC support this
+	  new interface. (ADPmp79442)
+
+Version: 1.1.5-2388 (This is a code stream identifier)
+
+compat.h+aachba.c+aacraid.h+commctrl.c+comminit.c+commsup.c+dpcsup.c+linit.c:
+	- Merged code and style changes in 2.6.11-rc5-bk3 into codebase.
+
+linit.c:
+	- Added support for shost_attrs & sysfs.
+
+linit.c+csmi.c:
+	- Dropped reference to Red Hat in printouts (ADPmp79559 & ADPmp79382)
+
+build:
+	- Strip kernel environment check for sourceball that is part of the
+	  DKMS packaging, broke DKMS build environment (ADPmp79708)
+
+Version: 1.1.5-2389 (This is a code stream identifier)
+
+build:
+	- Switch from 3.3 compiler to 3.4 for RHEL4 ia64 and FC3 all archs
+	  & all errata.
+	- Added support for 2.4.18-19.7.x (RH7.3 errata 19)
+
+linit.c: Domen Puncer <domen@coderock.org>
+	- Change from pci_module_init to pci_register_driver.
+
+linit.c:
+	- Loop for determining unique_id failed and generates a pattern of
+	  0, 1, 0, 0, ... (ADPmp79694)
+	- Added ICP9047MA and ICP9087MA to product probe. Added AvonPark Lite.
+
+linit.c+aachba.c:
+	- An SG list of 1K,4K,...,4K,64K+4K-1K got produced, the math for the
+	  maximum I/O should be (sg_tablesize * 8) + 112 instead.
+
+rkt.c+rx.c:
+	- Adapter Panic handler has AAC_IO_USES_CPU_ORDER misspelled.
+
+commsup.c:
+	- time stamp is an u32, not an unsigned long.
+
+csmi.c:
+	- Send LoopCount rather than bufferOffset to param[4] of GetRAIDConfig
+	  command. (ADPmp77631, ADPmp79282)
+
+Version: 1.1.5-2390 (This is a code stream identifier)
+
+build:
+	- Added support for 2.4.21-278 (SLES8/UL1 SP4 RC3)
+	- Removed support for 2.4.21-276
+	- Removed support for 2.4.21-277
+	- Removed support for 2.4.18-24.7.x (RH7.3 errata 24)
+	- Removed support for 2.4.18-26.7.x (RH7.3 errata 26)
+	- Removed support for 2.6.10-1.741_FC3-2.6 (FC3 errata 741)
+	- Dropped all the sles9-sp1 betas from the packaging.
+	- strip date stamps, then join.file the patches before commiting them
+	  to the archive.
+
+modules.equiv
+	- Declared 2.4.21-277 to be identical to 2.4.21-278
+	- Declared 2.4.18-24.7 to be identical to 2.4.18-19.7
+	- Declared 2.4.18-26.7 to be identical to 2.4.18-19.7
+	- Declared 2.6.10-1.737_FC3-2.6 to be identical to 2.6.10-1.741_FC3-2.6
+
+linit.c:
+	- return code from pci_register_driver() is not of the same form
+	  as pci_module_init. Only negative return values should be reported
+	  as an error.
+
+install.sh:
+	- Added /etc/grub.conf to list of grub files
+	- redirect error on boot configuration file awk script for cases when
+	  boot configuration file is not found.
+
+Version: 1.1.5-2391 (This is a code stream identifier)
+Version: 1.1.5-2392 (Branch off 1.1.5-2372 with pci_unregister_driver if aac_count drops to zero).
+
+build:
+	- Added support for 2.6.10-1.14_FC2-2.6 (RH FC2 Errata 14)
+	- Added support for 2.6.10-1.770_FC2 (RH FC2 Errata 770)
+	- Added support for 2.6.10-1.766_FC3-2.6 (RH FC3 Errata 766)
+	- Added support for 2.6.10-1.770_FC3-2.6 (RH FC3 Errata 770)
+	- Removed support for 2.6.10-1.9_FC2 (FC2) and placed in
+	  module.equiv
+	- Removed support for 2.4.18-e.47 (RHAS 2.1 IA64) and placed in
+	  module.equiv
+	- Added support for 2.4.18-e.52 (RHAS 2.1 IA64) in module.equiv
+	- Added support for 2.4.18-e.54 (RHAS 2.1 IA64) in module.equiv
+	- Generate dkms package with build number, but add a Branch Type
+	  of "dkms" into the version information reported by the driver.
+	- Generate source package with a Branch Type of "custom" into the
+	  version information reported by the driver.
+	- build rpm packages as 'noarch' and not as default of the build
+	  system 'i386'.
+
+csmi.c:
+	- uMaxDrivesPerSet needs to be acquired from the Firmware,
+	  rather than using the driver physical limits (ADPmp80188)
+
+aachba.c:
+	- Added some new container types (RAID5D, RAID5D0, RAID1E, RAID6
+	  and RAID60) to default array naming list.
+	- Changed over to new format of VM_NameServe64 (changed before
+	  customer release of Firmware that utilized interim format).
+
+linit.c:
+	- Added Hurricane ASR-4810SAS
+	- Added sensitivity to AAC_DRIVER_BRANCH in order to propagate
+	  driver source with keys as to their history.
+
+linit.c: (Mark Haverkamp <markh@osdl.org>
+	- Restructured sys handler to match standards expectations.
+	  ADPmp80589
+
+install.sh:
+	- Do not compare result in initrd to any backup orig drivers
+	  that may have been left in the /lib/modules tree.
+	- Added support for elilo.efi
+
+commsup.c+comminit.c:
+	- pci_alloc_consistent acquired GFP_DMA arena pool. This has
+	  been shown as a problem on 2.4 based kernels on em64t machines
+	  with > 4GB of memory which typically exhaust the DMA pool. So,
+	  prior to making the call, we will acquire GFP_ATOMIC
+	  memory first and check if it is 31BIT limited, and instead use
+	  that memory rather than resorting to the precious DMA pool. The
+	  other workarounds are to limit the memory to 4GB, set the
+	  memsize to 4GB, or to tell the SW IOMMU to reduce it's memory
+	  requirements (swiotlb=12288).
+
+Version: 1.1.5-2393 (This is a code stream identifier)
+
+linit.c+commctrl.c:
+	- Added AAC_DEBUG_INSTRUMENT_IOCTL_SENDFIB
+
+linit.c: Ming Zhang <mingz@ele.uri.edu> & Mark Salyzyn
+	- Set max_cmd_len to 16 to permit SAI_READ_CAPACITY_16 call to
+	  get through the scsi layer to the driver.
+
+linit.c:
+	- Added calls to csmi_register_ioctl32_conversion() and
+	  csmi_unregister_ioctl32_conversion()
+
+csmi.c:
+	- Added csmi_register_ioctl32_conversion(void) and
+	  csmi_unregister_ioctl32_conversion(void)
+
+install.sh:
+	- notice that we are doing an ELILO configuration on ia64
+
+aachba.c:
+	- Removed sundry debugging prints
+
+build:
+	- Added MODULES_CONF_OBSOLETES_ONLY[0]="${PRODUCT}" to dkms.conf
+	- Added support for 2.6.5-7.147 (SLES9 SP1 errata 147) to
+	  modules.equiv
+	- Added support for 2.6.5-7.151 (SUSE9.1 SP1 errata 151) to
+	  module.equiv
+	- Added support for 2.4.21-278-x86_64 (SLES8 SP4 64 bit)
+
+Makefile:
+	- Use TOPDIR instead of AAC_ROOT
+
+Version: 1.1.5-2394 (This is a code stream identifier)
+
+build:
+	- Added support for 2.4.20-133 (SuSE 8.2 errata 133)
+	- Added support for 2.4.21-286 (SuSE 9.0 errata 286) to module.equiv
+	- Added support for 2.6.8-24.14 (SuSE 9.2 errata 14)
+	- Added support for 2.6.9-5.0.3.EL (RHEL4 errata 3)
+	- Added support for 2.6.9-6.37.EL-2.6 (RHEL4 U1 beta)
+	- Added support for 2.6.10-1.771_FC2 (FC2 errata 771)
+	- Added support for 2.6.11-1.14_FC3 (FC3 errata 773)
+	- Added support for 2.4.21-31.EL (RHEL3 QU5 beta)
+
+aachba.c+linit.c: Tobias Klauser <tklauser@nuerscht.ch> & Domen Puncer <domen@coderock.org>
+	- added include for linux/dma-mapping.h
+
+linit.c: Konstantin Khorenko <khorenko@sw.ru>
+	- aac_info and aac_detect need to be active on in-kernel
+	  versions of the driver.
+
+linit.c:
+	- aac_show_flags is a newline separated list
+	- Added SAI_READ_CAPACITY_16 to list of possible flags in
+	  aac_show_flags
+	- aac_get_adapter_info status needs to be placed in the 'error'
+	  variable to unload correctly and deinit rather than unmap
+	  (ADPmp83209).
+
+commsup.c:
+	- allocate 8 more NewFibs than noticed to deal with high AIF
+	  traffic.
+	- Added support for wait=-2 to do a 'silent' timeout of a
+	  command.
+	- Increased the timeout for wait<0 to 3 minutes from 50 seconds
+	  due to paranoia (ADPmp83209)
+
+comminit.c:
+	- issue the adapter shutdown with a wait=-2 value (ADPmp78635)
+
+aacraid.h+rx.c+rkt.c+sa.c+linit.c:
+	- Added a disable_interrupt method to prevent future adapter
+	  interrupts when shut down. Call this method before free_irq(),
+	  preferably before dealocating structures. (ADPmp83209)
+
+commsup.c+comminit.c:
+	- revert out the GFP_KERNEL kmalloc call to see if it reports an
+	  address <2GB instead of using pci_alloc_consistent. Fix this
+	  another day. (ADPmp83209)
+
+Version: 1.1.5-2395 (This is a code stream identifier)
+
+build:
+	- Added support for 2.6.5-7.162 (SLES9 sp2 beta1)
+
+aachba.c+linit.c+aacraid.h+commsup.c+comminit.c+dpcsup.c:
+	- Merge differences in the 2.6.12-rc2 kernel.org branch of the
+	  driver.
+
+linit.c:
+	- Added ICP9085LI & ICP5085AU
+	- Modified support for ASR4810SAS
+
+aacraid.h+commsup.c:
+	- If ROMB heritage adapter, enable printf
+
+Version: 1.1.5-2396 (Avon Park SIT)
+
+build:
+	- Added support for 2.6.11.4-20a (SUSE 9.3)
+	- Added support for 2.6.9-5.0.3.EL-2.6 (CentOS4) to driver disks
+	- Added support for 2.6.9-5.0.5.EL (RHEL4 Errata 5) to
+	  modules.equiv
+	- Added support for 2.4.21-27.0.2.EL-2.4 (CentOS3) to driver
+	  disks
+
+linit.c+aacraid.h:
+	- Merge differences in the 2.6.12-rc2 kernel.org branch of the
+	  driver.
+
+linit.c:
+	- str() did not do the right thing, needed to nest macros.
+
+aachba.c+aacraid.h+commctrl.c+comminit.c+commsup.c+dpcsup.c+linit.c: Mark Haverkamp <markh@osdl.org>
+	- Remove sparce warnings
+
+readme.txt(dkms):
+	- Added strings for 'ips' driver
+	- Added documentation on how to make a 'suse' driver disk
+
+Version: 1.1.5-2397 (This is a code stream identifier)
+
+build:
+	- sort distributions when code has to cut the products into
+	  pieces.
+
+commctrl.c:
+	- byte_count is converted from le32 to cpu, then again when used
+	  in the following line. Dropped the second le32_to_cpu call. No
+	  side effects in an LE machine.
+
+linit.c:
+	- MODULE_VERSION limited to 2.6.4 and higher
+
+Version: 1.1.5-2398 (Avon Park SIT)
+Version: 1.1.5-2399 (This is a code stream identifier)
+
+build:
+	- Added linked equivalent entries for multi-OS driver disk
+	  images in driverdisks tarball
+	- dkms package versioning is ${VERSION}.${REVISION}.${BUILD} as
+	  required by DKMS and changed the tarball package name to
+	  ${VERSION}.${REVISION}-${BUILD} to match the other build
+	  product names. Adjusted dkms documentation to match.
+	- Added support for 2.4.21-27.0.4.EL-2.4 (RHEL3 QU4 Errata 4) to
+	  modules.equiv
+
+install.sh
+	- RHEL3, RHEL4, FC2 and FC3 all can add a -2.4 or -2.6 into the
+	  kernel name that does not match the /lib/modules/kernel names.
+
+Version: 1.1.2-2400 - 1.1.2-lk2 + LARGE_FIB patch
+Version: 1.1.5-2400 (Enzo)
+
+build:
+	- Added support for 2.6.5-7.104 (SLES9 errata) to module.equiv
+	- Added support for 2.6.5-7.108 (SLES9 errata)
+	- Added support for 2.4.21-169 (SLES8 errata)
+	- Added support for 2.4.21-190 (SLES8 errata) to module.equiv
+	- Added support for 2.4.21-192 (SuSE 9 errata) to module.equiv
+	- Added support for 2.4.21-196 (SLES8 errata) to module.equiv
+	- Added support for 2.4.21-198 (SLES8 errata) to module.equiv
+	- Added support for 2.4.21-199 (SuSE 9 errata)
+	- Added support for 2.4.21-202 (SuSE 9 errata) to module.equiv
+	- Added support for 2.4.21-207 (SLES8 errata) to module.equiv
+	- Added support for 2.4.21-215 (SLES8 errata) to module.equiv
+	- Added support for 2.4.21-226 (SuSE 9 errata) to module.equiv
+	- Added support for 2.4.21-238 (SuSE 9 errata) to module.equiv
+	- Added support for 2.4.21-280 (SLES8 errata) to module.equiv
+	- Added support for 2.6.8-24.3 (SuSE 9.2 errata 3)
+	- Added support for 2.4.9-e.62 (RHAS2.1 QU7)
+	- Switched support for 2.4.19-340 to module.equiv
+	- 2.6.5-7.162 had the wrong .config entries, CONFIG_RELEASE="0"
+	  instead of "7.162"
+
+Version: 1.1.5-2400 (This is a code stream identifier)
+
+aachba.c+linit.c: James Bottomley <James.Bottomley@SteelEye.com> & Mark Haverkamp <markh@osdl.org>
+	- Use blk_queue_max_segment_size() instead of 2.4 kernel fix where
+	  we split up SG elements if they exceed 64KB for the older adapters.
+
+build:
+	- Added support for 2.4.21-32.EL (RHEL3 QU5)
+
+Version: 1.1.5-2401 (Enzo)
+
+aachba.c:
+	- Removed aac_spin* macros, they are no longer needed and reduce the
+	  differences between the kernel.org and Adaptec branch of the driver.
+
+linit.c: Mark Haverkamp <markh@osdl.org>
+	- Dropped aac_host_version from /sys entry names (/sys/modules/aacraid
+	  is a duplicate of this information).
+	- Dropped aac_ from /sys entry names
+	- Dropped supporting wrapping text from /sys entry contents
+
+aachba.c+aacraid.h+commctrl.c+comminit.c+dpcsup.c+rkt.c+sa.c+linit.c:
+	- Back merged cosmetic changes from 2.6.12-rc4-git2
+
+linit.c:
+	- Move DRIVER_FULL_VERSION down so that parameters in aacraid.h
+	  can be picked up if necessary.
+
+install.sh:
+	- Added support for --mail option.
+
+build:
+	- Added report in README for unusual build flags.
+	- SL9.3 build was broken, needed an rpm-version file placed in the
+	  TOPDIR.
+
+Version: 1.1.5-2401 (This is a code stream identifier)
+
+build:
+	- Added support for 2.4.21-32.0.1.EL-2.4 (RHEL3 QU5 errata 1)
+	- Added support for 2.6.11-1.27_FC3-2.6 (FC3 errata 27)
+	- Alterred build of 2.6.11.4-20a (SUSE 9.3)
+	- Alterred build of 2.6.9-6.37.EL (RHEL4 U1 beta)
+
+install.sh:
+	- SLES9, SL9.3 (and probably others) switched from mk_initrd to
+	  mkinitrd using 'SuSE' parameters. Added a check to see if the
+	  /sbin/mkinitrd had "i).*initrd" and "k).*kernel" contained in
+	  the script to differentiate.
+
+commsup.c:
+	- When an array is clearing, we issue a scan when we should be
+	  issuing a delete in the 2.6 stream (ADPmp85455).
+	- When the array clear has completed, we have discovered a means to
+	  add the device for kernels between 2.6.3 and 2.6.10 (ADPmp85455).
+
+commsup.s+aacraid.h:
+	- We added additional code to determine when the container zero
+	  task starts, and issue a container delete when the container
+	  change event occurs. We keep the original container zero detector
+	  as it is also used to detect a container create. (ADPmp85455)
+
+Version: 1.1.5-2402 (This is a code stream identifier)
+
+commctrl.c:
+	- send raw srb has some return code -1, that should be replaced
+	  with ENOMEM and ENXIO to be more descriptive. -1 is
+	  equivalent to indicating EPERM.
+	- used the outgoing swapped value for sg count in 32 bit path
+	  rather than the user value (ADPmp85466)
+
+aacraid.h+linit.c:
+	- Added AAC_DEBUG_INSTRUMENT_PENDING which displays the number
+	  of commands outstanding to the adapter in both the /proc and
+	  /sys interface points.
+
+compat.h:
+	- Recognize that scsi_remove_host should restore the 'aac'
+	  value (ADPmp85994).
+
+linit.c+Makefile:
+	- If scsi_in_detect is present in hosts.c, then we need to
+	  adjust the code that 'hacks' 2.4 functionality. This affects
+	  RHEL3 QU2 and up only (ADPmp85994+). This one was a mind-
+	  bender where they broke support for allocation of adapter
+	  scsi resources before the registration call as a scsi module.
+
+compat.h+Makefile:
+	- If scsi_scan_host is exported in scsi_syms.c, then we need to
+	  use it to improve the timeliness of delivery.
+
+aachba.c:
+	- aac_driver_version is now a character string, compatibility
+	  report needs to be adjusted.
+
+install.sh:
+	- Added support to recognize other versions of em64t
+	  processors, Genuine Intel processors. (ADPmp86028)
+
+Version: 1.1.5-2403 (This is a code stream identifier)
+
+aacraid.h:
+	- Remove AAC_DEBUG_INSTRUMENT_PENDING
+
+Version: 1.1.5-2403 (Enzo)
+
+linit.c:
+	- monitor_version and bios_version should be hba_monitor_version
+	  and hba_bios_version respectively.
+
+build:
+	- Added support for 2.6.9-11.EL-2.6 (RHEL4 U1)
+	- Removed support for 2.6.7-1.451.2.3 (RHEL4 alpha)
+	- Removed support for 2.6.8-1.602 (RHEL4 beta)
+	- Removed support for 2.6.8-1.648_EL (RHEL4 beta)
+	- Removed support for 2.6.9-1.906_EL (RHEL4 beta)
+	- Removed support for 2.6.9-6.37.EL_2.6 (RHEL4 U1 beta)
+
+aachba.c+aacraid.h+csmi.c+linit.c:
+	- Merged in 2.6.12-rc6-git8
+
+commctrl.c:
+	- cdb was not transfered when sending raw srb commands.
+
+Version: 1.1.5-2404 (Enzo)
+
+build:
+	- RHEL3 U5 2.4.21-32.EL was erroneously versioned as 2.4.21-32.EL-2.4
+
+Version: 1.1.5-2405 (Enzo)
+
+compat.h+csmi.c+linit.c:
+	- Incorrect expectations for list_for_each_entry usage, the loop
+	  'entry' variable is undefined when outside the loop. Only
+	  experienced side effect is a failure to load/unload the driver
+	  module in the 2.4 series of the kernels (ADPmp85994). CSMI is
+	  affected, but no reported problems.
+
+compat.h:
+	- 2.4.21-17.EL+ has scsi_scan_host(), but does not have the
+	  corresponding scsi_remove_host() call! We construct one that
+	  issued "scsi remove-single-device" calls to proc
+	  (ADPmp85994).
+
+aachba.c+linit.c:
+	- move probe_container out of the queuecommand path under the
+	  2.4 based timesys kernels. They can not handle a 'blocking'
+	  function, especially one that requires an interrupt response
+	  before returning to the caller.
+
+build:
+	- CHANGELOG inclusion in source is now parameterized
+	  (--nochangelog).  Subsequent Enzo or AvonPark builds will
+	  set this flag.
+
+Version: 1.1.5-2404 (This is a code stream identifier)
+
+build:
+	- Added support for 2.6.5-7.187 (SLES9 sp2 rc3)
+	- Removed driver disk support for 2.6.5-7.162 (SLES9 sp2 beta1)
+	- Added support for 2.6.11-1.35_FC3_2.6 (FC3 errata)
+	- Added support for 2.6.11-1.1369_FC4 (FC4 Gold)
+	- Added support for GCC4 cross/native compile suite.
+	- set ARCH= for all cases, just in case build machine is hosted
+	  on a non-i386 environment.
+	- To support a SLES9 build machine, we need to set LC_ALL and
+	  LANG.
+
+aachba.c:
+	- probe_container call was not ifdef'd out properly for
+	  CONFIG_TIMESYS.
+
+aachba.c+commsup.c+linit.c+csmi.c+aacraid.h
+	- merge scsi-misc-2.6.git cosmetics
+	- remove aac_atoi() and replace with simple_strtol()
+
+install.sh:
+	- set LC_ALL to C.
+
+Version: 1.1.5-2405 (This is a code stream identifier)
+
+build:
+	- Fixed permission issues with creation of iso driver disks that
+	  affected the SuSE portion of the image.
+
+comminit.c+aachba.c+linit.c:
+	- Use NEW_COMM flag to switch between 64K scatter gather element
+	  limits or not. The SGBCOUNT condition has outgrown it's
+	  usefullness.
+	- Dropped SGBCOUNT to 4096 from 8192 as we managed to cause the
+	  2810 to drop out as the WD SD drives can not handle such large
+	  requests.
+
+aachba.c:
+	- Adjusted white space to match better with scsi-misc-2.6.git
+
+commctrl.c:
+	- In the 64 bit data path of the raw srb handler, the scatter
+	  gather data was transferred to the user side rather than the
+	  fib side of the equation (ADPmp87218)
+
+Version: 1.1.5-2406 (This is a code stream identifier)
+Version: 1.1.5-2406 (Enzo)
+
+aacraid.h: Martin Drab <drab@kepler.fjfi.cvut.cz>
+	- Dropped AAC_MAX_32BIT_SGBCOUNT to 512, some field
+	  instability showed up on the adapters.
+
+build:
+	- Added support for 2.6.5-7.155.29 (SuSE 9.1 errata)
+	- Added support for 2.6.5-7.191 (SLES9 SP2)
+	- Added support for 2.6.12-1.1387_FC4-2.6 (FC4 errata)
+	- Added support for 2.6.12-1.1390_FC4-2.6 (FC4 errata)
+
+Version: 1.1.5-2407 (Enzo)
+Version: 1.1.5-2407-1 FSC branch with first two fixes (scsi_bios_ptable
+	NULL, and hot action break from loop) of 1.1.5-2410.
+
+build:
+	- Added object module checking to build script to ensure that
+	  fiasco resulting from a full build done in a dirty environment
+	  does not produce a fubar result. More changes or policy to
+	  come to control the prominence of the warning message(s)
+	- When confronted with a kernel that is not configured as part
+	  of the build, make note, declare an error, but continue.
+	- Added 2.6.5-7.191 (SLES9 sp2) to the driver disk.
+	- Removed driver disk support for 2.6.5-7.162 (SLES9 sp2 beta1)
+	- Removed driver disk support for 2.6.5-7.187 (SLES9 sp2 rc3)
+	- Fixed SL9.3 driver disk creation, neglected to add -20a to
+	  kernel names to be added to this driver disk.
+	- Added 2.6.12-1.1372_FC3 (FC3 errata)
+	- Added 2.6.12-1.1398_FC4 (FC4 errata)
+	- Added 2.6.11.4-21.7 (SL9.3 errata)
+	- Added 2.6.9-7.2.EL (RHEL4 hot fix)
+	- Removing 2.4.19-kdb
+
+linit.c+README+readme.txt.orig+pciids.sourceforge.net
+	- Added IBM ServeRAID 8k/8k-l4 and 8k/8k-l8 product IDs.
+	- Added ICP9067MA product IDs
+
+linit.c: (Christoph Hellwig <hch*lst.de>
+	- Remove scsi_cmnd->state
+
+linit.c+rx.c+rkt.c+sa.c:
+	- Move thread start out of the adapter initialization routines
+	  and certainly after adapter startup so that we don't get any
+	  time updates before the adapter is considered ready. Currently
+	  the thread blocks this from occurring by not setting the time
+	  until a second or more has elapsed. This is not considered a
+	  reliable fence.
+
+linit.c:
+	- ICP9085LI & ICP5085BR used the rkt interface instead of the rx
+	  interface (ADPmp87781)
+	- 8k and ASR4810SAS used the rx interface instead of the rkt
+	  interface.
+
+Version: 1.1.5-2407 (This is a code stream identifier)
+Version: 1.1.5-2407 (AvonPark)
+Version: 1.1.5-2408 (Enzo)
+
+aachba.c+comminit.c: Mark_Salyzyn@adaptec.com & Nagendra_Tomar@adaptec.com
+	- replace sgmap with sgentry when determining the maximum sg
+	  entries to fit in a FIB.
+
+aachba.c: James Bottomley <James.Bottomley@SteelEye.com>
+	- Incorrect used of scsicmd->timeout - jiffies, use
+	  scsicmd->timeout_per_command instead.
+
+commctrl.c:
+	- remove unnecessary unlocks surrounding kfree calls.
+	- kmalloc call has arguments reversed, result was to
+	  allocate a 224 byte structure which currently is 'big
+	  enough' for most command requirements for the srb command.
+	- If a LARGE_FIB is larger than the negotiated size and larger
+	  than 2K, then return EINVAL
+
+install.sh:
+	- Added support to permit /lib/modules/2.4.21-231-SMP
+	  and /lib/modules/2.4.21-231 to be handled by the installer.
+
+build:
+	- Added 2.6.5-7.193 (SL9.1 update)
+	- Added 2.6.8-24.17 (SL9.2 update)
+
+linit.c:
+	- switch to using aac_shutdown instead of aac_reboot_event.
+	- return -ENODEV if the adapter count is 0.
+	- No need to pre-populate device structures with probe_container
+	  calls before issuing the scan, as this is done by the
+	  aac_get_containers() call.
+	- replaced using 'serial_number' with command->request
+	  and command->request->rq_status != RQ_INACTIVE
+
+rx.c+rkt.c+linit.c+commsup.c
+	- Started using IOP_RESET.
+
+commsup.c:
+	- Added a check for fsa_dev as it can be in an uninitialized state
+	  at the time aac_handle_aif() is called.
+
+aachba.c+commsup.c
+	- Added update_interval and check_interval for time sync and
+	  check health to make them tunable.
+
+sa.c:
+	- sa_writew(,,cpu_to_le16(0xffff)) should be sa_writew(,,0xffff)
+
+linit.c+aachba.c:
+	- Support no_uld_attach in lieu of the traditional blocking of
+	  Inquiry responses for kernels that support this flag (2.6.10+).
+	  enforce data protect for RAID components. This also affects
+	  back ports, which currently includes SLES9 SP2 and SLES9 updates.
+
+aachba.c: Mark Haverkamp <markh@osdl.org>
+	- Fix aacraid probe breakage in scsi-block-2.6
+
+Version: 1.1.5-2407 (IBM Jaguar SIT)
+
+linit.c+aachba.c+commsup.c:
+	- Drop references to cmd->owner & cmd->state and duplicate the
+	  functionality in cmd->SCp.phase
+	- split out from aac_check_health() the aac_reset_adapter()
+	  routine and add a "reset_host" sys attribute to call it.
+	  This same entry point returns adapter status.
+
+linit.c:
+	- In the proc handler,
+		echo reset_host >/proc/scsi/aacraid/?
+	  will trigger a reset of the host adapter for legacy kernels
+	  using the new aac_reset_adapter() handler.
+
+commsup.c:
+	- call scsi_block_request()/scsi_unblock_request() instead of
+	  relying purely on the in_reset command queue kickback. Also
+	  released the host_lock early so that we do not have tasks
+	  blocked (we did manage to get a CPU? hang complaint on
+	  weekend testing.
+	- 32 bit math errors when dealing with check_interval (ADPmp90870).
+
+linit.c+Makefile:
+	- Add support for disk dump feature in RHEL3.
+
+Version: 1.1.5-2408 (IBM Jaguar SIT)
+
+aachba.c:
+	- use aac->max_fib_size rather than sizeof(struct hw_fib) in
+	  the BUG statement because if the Adapter negotiates a larger
+	  fib, you *will* get a panic. This is not an issue for any
+	  current driver from Adaptec or from the scsi-misc-2.6 tree,
+	  but since the raw I/O code did not propagate to 2.6.13 yet, it
+	  is a serious issue there.
+
+install.sh:
+	- Did not accommodate module.o & module.ko entries in the
+	  RH driver disk format (ADPmp90502)
+	- One can not trust a break in a case statement (ADPmp90870)
+
+build:
+	- Add 2.6.11.4-21.8 (SL9.3 update)
+	- Add support for CentOS 4.1
+	- Add support for the generation of an RHEL4, FC3, FC4, CentOS
+	  CDROM driver disk.
+
+commsup.c:
+	- The AifDen* packets should result in immediate driver action
+	  (ADPmp90701)
+
+Version: 1.1.5-2408 (This is a code stream identifier)
+
+commsup.c:
+	- user submitted IOP_RESET should perform a VM_CloseAll (flush
+	  cache) before submitting command. Unwind if IOP_RESET is not
+	  supported.
+
+aacraid.h+aachba.c:
+	- If the SlotNumber in the supplement information is unknown,
+	  then set the slot number from the Linux concept of slot
+	  number and inform Adapter of the setting (ADPmp90861).
+	  Should be set by the BIOS normally, but not all Linux systems
+	  have a BIOS!
+
+aachba.c+commsup.c:
+	- Merged current scsi-misc-2.6 cosmetic changes.
+
+build:
+	- x86_64 SuSE dud template is not being transferred.
+
+Version: 1.1.5-2409 (This is a code stream identifier)
+Version: 1.1.5-2409 (IBM Jaguar SIT)
+
+linit.c: Martin Wilck <martin.wilck@fujitsu-siemens.com> & Mark_Salyzyn@adaptec.com
+	- scsi_bios_ptable can return a NULL pointer, if memory is
+	  exhausted or if someone created a zero sized array.
+	  ADPmp91471
+
+commsup.c: Martin Wilck <martin.wilck@fujitsu-siemens.com> & Mark_Salyzyn@adaptec.com
+	- break of device loop once one is discovered so that we are
+	  not presented with a borken device list following one of
+	  the hot actions. ADPmp91471
+
+aachba.c: Ken Sandars <Ken_Sandars@adaptec.com>
+	- scsicmd->cmnd[9] << 32 should be scsicmd->cmnd[5] << 32
+
+aachba.c:
+	- Ifdef SlotNumber setting, decided that BIOS and Management
+	  needs to get their act together.
+
+commctrl.c:
+	- If the aac_command_thread appears to have died, resurrect it!
+	  ADPmp91208.
+
+build:
+	- Add 2.6.0-test5_2 (TL 10 Desktop boot)
+	- Add 2.6.0-6 (TL 10 Desktop install)
+	- Add 2.6.0-24 (TL 10 Desktop update)
+	- Add 2.6.8-1 (TL 10 Server)
+	- Add 2.6.8-5 (TL 10 Server update)
+
+Version: 1.1.5-2410 (This is a code stream identifier)
+Version: 1.1.5-2410 (IBM Jaguar SIT)
+
+build:
+	- Add 2.4.21-37.EL (RHEL3 U6)
+	- Removed CODE_STREAM_IDENTIFIER from channel build
+	- Fixed 2.4.21-37.EL (RHEL3 U6) so that it would land on driver
+	  disk
+	- Add 2.4.22-1.2115.nptl (FC)
+	- Add 2.4.22-1.2199.nptl (FC errata)
+
+aachba.c+commsup.c+linit.c:
+	- Merge scsi-rc-fixes-2.6
+
+commctrl.c+Makefile:
+	- Can not use find_task_by_pid universally, not all kernels
+	  export the symbol for use by the modules ADPmp91208 &
+	  ADPmp91941.
+
+aachba.c: Torry Hoffman <torry@lockdownnetworks.com>
+	- ifdef out variables i and count as they are unused.
+
+Version: 1.1.5-2411 ()
+Version: 1.1.5-2411 (Avon Park SIT)
+Version: 1.1.5-2411 (IBM Jaguar SIT)
+
+build:
+	- README.txt now reports the 2.4.19 sub-version on SuSE
+	  kernels incorporated into the driver disks.
+	- Add 2.6.9-22.EL (RHEL4 U2)
+	- Add 2.6.5-7.224 (SuSE SP3 beta2)
+
+linit.c:
+	- 2.4.2 and 2.4.4 kernels dropped off of build due to
+	  usage of snprintf. Continued pedantic build checking
+	  of the driver in multiple kernels only reason for
+	  repair of this code.
+
+aacraid.h: Juan D Ch <jchimienti@most.com.ar>
+	- Dropped AAC_MAX_32BIT_SGBCOUNT to 256, some field
+	  instability showed up on the adapters.
+
+commsup.c: John Hanson <John_Hanson@adaptec.com>
+	- When we requeue a container for later processing, lets move on
+	  down the list and check if another could be done in the
+	  current cycle ADPmp91038.
+
+Version: 1.1.5-2412 ()
+Version: 1.1.5-2412-IBM () ADPmp92508
+
+commctrl.c:
+	- Only resurrect the aac_command_thread if the resources are
+	  available ADPmp92417
+
+commsup.c: Jesper Juhl <jesper.juhl@gmail.com>
+	- Removed all if (ptr) kfree(ptr) style calls.
+
+Version: 1.1.5-2413-IBM ()
+
+build:
+	- add SCSI_HAS_DUMP* checking in the build scripts to complement
+	  those picked up by the Makefile. This is useful for the ips
+	  and dpt_i2o drivers.
+	- Added 2.6.11.4-21.9 SuSE 9.3 errata kernel.
+	- Various SuSE Pro releases dropped the bigsmp driver because
+	  the build script specified *-bigsmp-ia32 instead of
+	  *-bigsmp-i586
+
+Version: 1.1.5-2413 ()
+
+build:
+	- Added 2.6.13-3 SuSE 10.0 pro
+	- Added 2.6.13-9 SuSE 10.0 pro
+
+compat.h:
+	- include linux/dma-mapping.h ahead of the MASK definitions to
+	  ensure that we do not enter into a situation where the
+	  definitions differ from what the driver utilizes. Purely a
+	  warning issues as the MASK does not differ at this time.
+
+compat.h+aachba.c: Jeff Garzik <jgarzik@pobox.com>
+	- replace scsicmd->device->id and scsicmd->device->channel with
+	  scmd_id(scsicmd) & scmd_channel(scsicmd) respectively.
+	- replace sdev->id with sdev_id(sdev);
+
+commctrl.c: Mark_Salyzyn@adaptec.com & Keith_Conner@adaptec.com
+	- aacraid thread restart needs to occur with the fib_lock
+	  released.
+
+aachba.c+aacraid.h+commctrl.c+comminit.c+commsup.c+csmi.c: Mark_Salyzyn@adaptec.com & Olivier Kaloudoff <kalou@kalou.net>
+	- changed to aac_fib_init defined and used in network code.
+
+aachba.c+commctlr.c+comminit.c:
+	- changed over from pci_map_single to pci_map_page.
+
+aachba.c:
+	- highmem_io was not set when using raw_io.
+
+commsup.c: Christoph Hellwig <hch@lst.de>
+	- replace Scsi_Device with scsi_device in comments to more
+	  accurately reflect the naming of the structure.
+
+commsup.c:
+	- Merged changes from scsi-misc-2.6
+
+Version: 1.1.5-2414 ()
+
+commsup.c: John_Hanson@adaptec.com
+	- perform the aac_probe_container after busy check, but before
+	  scan request to the OS.
+
+comminit.c+aachba.c+linit.c+dpcsup.c compat.h commsup.c aacraid.h
+	- Merged in changes from VMWARE
+
+comminit.c+aachba.c+linit.c+dpcsup.c+commsup.c+aacraid.h+csmi.c+commctrl.c
+	- fib_adapter_complete+fib_init+fib_alloc+fib_send+
+	  fib_complete+fib_free+fib_map_free+fib_setup+probe_container
+	  all have a prefix of aac_ to prevent name space collision when
+	  the driver is compiled into the kernel.
+
+aachba.c+linit.c+rx.c+rkt.c+README
+	- Merged changes from scsi-misc-2.6
+
+aachba.c: Ken Sandars <ken_sandars@adaptec.com>, John Hanson <John_Hanson@adaptec.com> & Mark_Salyzyn@adaptec.com
+	- SAI_READ_CAPACITY_16 compliance with sbc2r16
+
+build:
+	- Added 2.6.13-15 SuSE 10.0 pro
+
+Version: 1.1.5-2415 ()
+
+build:
+	- Added 2.6.12-1.1378_FC3-2.6
+	- Added 2.6.12-1.1380_FC3-2.6
+	- Added 2.6.12-1.1381_FC3-2.6
+	- Added 2.6.12-1.1456_FC4-2.6
+	- Added 2.6.13-1.1526_FC4-2.6
+	- Added 2.6.13-1.1532_FC4-2.6
+	- Added 2.6.9-22.8.EL
+
+aacraid.h+linit.c+commsup.c:
+	- Dell CERC card performs poorly when more than 17 sg elements
+	  are passed into the CHIM.
+
+Version: 1.1.5-2415-IBM ()
+
+aachba.c+commsup.c:
+	- revert change introduced to move aac_probe_container after
+	  busy check and instead decide not to take targets offline if
+	  they happen to be in the aac_probe_container state.
+
+build:
+	- Updated DKMS to 2.0.8
+
+aachba.c+commctlr.c+comminit.c+commsup.c+compat.h:
+	- pci_map_page was rejected by the community, code pulled.
+
+linit.c:
+	- scsi_bios_ptable return check is not in coding style.
+	- set skip_ms_page_8 to soften read cache page warning.
+
+linit.c+aachba.c+compat.h: Mark_Salyzyn@adaptec.com & Christoph Hellwig <hsh@infradead.org>
+	- Used CONTAINER_CHANNEL when matching the virtual channel 0
+	- use sdev_channel & sdev_id
+
+build:
+	- Add 2.4.9-e.62 to modules.equiv
+	- Add 2.4.9-e.65 to modules.equiv
+	- Add 2.6.14-1.1637_FC4-2.6 (FC4 errata)
+	- Add 2.6.14-1.1644_FC4-2.6 (FC4 errata)
+	- Add 2.6.9-22.0.1.EL-2.6 (RHEL4 errata)
+	- Corrected configuration of 2.6.5-7.224 (SuSE SP3 beta2)
+	- Add 2.6.5-7.236 (SuSE SP3 RC1)
+	- Add 2.6.5-7.243 (SuSE SP3 RC3)
+	- Add 2.6.5-7.244 (SLES9 SP3)
+	- Add 2.6.13-15.7 (SuSE 10 errata update)
+	- Add 2.6.5-7.224 as a module.equiv of 2.6.5-7.243
+	- Add 2.6.5-7.236 as a module.equiv of 2.6.5-7.243
+	- Add 2.6.5-7.193 as a module.equiv of 2.6.5-7.191
+
+aachba.c+rx.c+rkt.c+sa.c:
+	- Added support for an insmod parameter startup_timeout. The
+	  default value is set to 3 minutes for channel, 9 minutes for
+	  external.
+
+Version: 1.1.5-2416 ()
+
+linit.c:
+	- set skip_ms_page_3f to soften write enable warning.
+
+aachba.c+commsup.c:
+	- Added support for an insmod parameter aif_timeout. The default
+	  value is set to 2 minutes for channel, 9 minutes for external.
+
+Version: 1.1.5-2416-IBM ()
+
+build:
+	- Removed 2.6.5-7.224 (SLES9 sp3 b2)
+	- Removed 2.6.5-7.236 (SLES9 sp3 rc1)
+	- Removed driver disk support for 2.6.5-7.243 (SLES9 sp3 rc3)
+	- Added 2.6.9-22.EL i586 configuration (CentOS 4.2 i386 desktop)
+	- Added 2.6.9-27.EL (RHEL4 U3 rc)
+
+compat.h+linit.c: M.Gehre <M.Gehre@gmx.de>
+	- Added DMA_31BIT_MASK
+
+Version: 1.1.5-2417 ()
+
+Makefile: Martin Wilck <martin.wilck@fujitsu-siemens.com> & Mark_Salyzyn@adaptec.com
+	- SCSI_HAS_SCSI_SCAN_HOST should check for the presence of
+	  scsi_scan_host in the file.
+
+build:
+	- Moved ia64 and ppc architectures out of RHEL4 and CentOS disks
+	  and moved them into RHEL4-enterprise and CentOS-enterprise.
+	- Added support for reporting architectures in README.txt.
+	- Split sles9-sp's into their own sets, they were mixing with
+	  u11-sp's before.
+	- Adjusted Driver Disk ISO images, moved 2.6 RH kernels into the
+	  SuSE set, moving 2.4 RH kernels on their own. Added sl10. Have
+	  *not* dealt with sles9-sp's as they each require their own
+	  ISOs and will wait until the fan hits ...
+	- Added 2.6.14-1.1653_FC4 (FC4 errata)
+	- Added 2.6.14-1.1656_FC4 (FC4 errata)
+	- Added 2.6.11.4-21.10 (SuSE 9.3 errata)
+	- Added 2.6.9-22.25.EL
+
+commctrl.c:
+	- check the in_reset flag before attempting to restart the AIF
+	  thread.
+
+linit.c:
+	- Added /sys/class/scsi_host/host?/max_channel
+	- Added /sys/class/scsi_host/host?/max_id
+	- max_channel is '0' based, not 1 as it is currently treated.
+	- for kernels from 2.6.7 to 2.6.9 use inq_periph_qual as an
+	  equivalent to no_uld_attach.
+	- for kernels from 2.6.0 to 2.6.7 use inquiry[0] >> 5 as an
+	  equivalent to no_uld_attach.
+	- for kernels before 2.6.0 use type >> 5 as an equivalent to
+	  no_uld_attach.
+
+aachba.c:
+	- Added support for the expose_physicals insmod flag. This flag
+	  sets nondasd & turns off r/w protection for the physicals.
+	- for kernels from 2.6.7 to 2.6.9 use inq_periph_qual as an
+	  equivalent to no_uld_attach.
+	- for kernels from 2.6.0 to 2.6.7 use inquiry[0] >> 5 as an
+	  equivalent to no_uld_attach.
+	- for kernels before 2.6.0 read and write protect the drives.
+
+Version: 1.1.5-2418 ()
+
+build:
+	- Add 2.6.9-32.EL (RHEL4 U3 beta)
+	- Add 2.6.13-15.8 (SuSE 10 errata update)
+	- Add 2.4.21-4.17.EL (RHEL3 Gold 64 bit)
+	- Add 2.4.21-37.18AX (Miracle Linux 3)
+	- Add 2.6.5-7.252 (SLES9 update)
+	- Add 2.6.11.4-21.11 (SuSE 9.3 update)
+	- Add 2.6.15-git12-6 (SLES 10 beta 1)
+
+aachba.c:
+	- Data protect WRITE_LONG, WRITE_VERIFY, MODE_SELECT and
+	  LOG_SELECT.
+
+commsup.c:
+	- added lock_kernel/unlock_kernel around call to write_proc.
+
+aacraid.h+comminit.c+commsup.c+linit.c: Christoph Hellwig <hch@lst.de>
+	- use kthread_API
+
+commctrl.c:
+	- use kthread_API
+
+aachba.c: Takashi Iwai <tiwai@suse.de>
+	- Fix the comparison of sizeof()
+
+Version: 1.1.5-2419 ()
+
+build:
+	- Add 2.4.21-37.EL (RHEL3 U7 beta)
+	- Add 2.6.9-22.0.2.EL-2.6 (RHEL4 errata)
+
+linit.c+commsup.c+aachba.c+comminit.c:
+	- Merge cosmetic changes from scsi-misc-2.6
+
+linit.c+commsup.c+comminit.c+commctrl.c+aacraid.h
+	- kthread_API only invoked past 2.6.5-7.162 ADPmp95987
+
+commsup.c:
+	- Bumped up the AIF timeout to 30 seconds, the adapter could
+	  introduce delays in processing when in lockdrive. ADPmp94961?
+
+Version: 1.1.5-2420 ()
+
+build:
+	- Add 2.6.9-34.EL (RHEL4 U3)
+
+Version: 1.1.5-2419-IBM ()
+
+build:
+	- Add 2.4.21-40.EL (RHEL3 U7)
+
+commsup.c+commctrl.c+linit.c:
+	- Cosmetic changes merged from scsi-misc-2.6
+
+build:
+	- Split RHEL4 & CentOS driver disks into ia32 and x86_64 parts
+	- Dropped RHEL3 beta kernels 2.4.21-17.EL, 2.4.21-31.EL,
+	  and 2.4.21-38.EL from the RHEL3 driver disks.
+
+Version: 1.1.5-2420-HP ()
+Version: 1.1.5-2420-IBM ()
+
+build:
+	- Add 2.6.15-1.2054_FC5 (FC5 Gold)
+	- Add 2.4.21-37.ELvmnix (VMWare 3.1)
+	- Add 2.4.9-e.65 (RHAS2.1 errata 65)
+	- Add 2.4.9-e.68 (RHAS2.1 errata 68)
+	- Add 2.4.9-e.68 to modules.equiv
+	- Dropped 2.4.9-e.62 products (already in modules.equiv)
+
+linit.c:
+	- 32 bit applications in 64 bit space are not handled correctly
+	  in kernels above 2.6.10 for acquisition of AIFs ADPmp95861 &
+	  ADPmp95859.
+
+aacraid.h+linit.c+Makefile: Nobuhiro Tachino <ntachino@redhat.com>
+	- one can not ssleep or msleep during disk dump, so we call our
+	  own versions to differentiate and use mdelay instead during.
+
+aacraid.h+aachba.c+commctrl.c+commsup.c+linit.c:
+	- Merge in scsi-misc-2.6
+
+Version: 1.1.5-2421
+
+build:
+	- Add 2.6.16-rc5-git9-2 (SLES10 rc7)
+
+comminit.c: Andreas Mohr <andi@rhlx01.fht-esslingen.de>
+	- spelling correction.
+
+aacraid.h+linit.c+Makefile:
+	- Added support for diskdump under 2.6.16-rc5-git9-2.SuSE kernel
+
+Version: 1.1.5-2422
+
+build:
+	- Add 2.6.15-1.2054_FC5 (FC5)
+	- Fix 32 bit compile of 2.6.15-git12-6 (SLES10 beta 1)
+	- Fix 32 bit compile of 2.6.16-rc5-git9-2 (SLES10 beta 7)
+
+commsup.c+linit.c:
+	- moved locking around to fix problems with user initiated reset
+
+aachba.c+commsup.c+linit.c:
+	- Added a parameter to aac_get_config_status to request that the
+	  CT_COMMIT_CONFIG be issued. This is to ensure that the
+	  BlinkLED recovery always does a commit config. This change may
+	  morph as we get feedback from the external products.
+
+commsup.c:
+	- block scsi commands & wait for commands to flush before
+	  issuing the VM_CloseAll in the user initiated reset handler.
+
+install.sh:
+	- 'sort +2' is deprecated in FC5. Replace with 'sort -k 2'.
+
+Makefile:
+	- Dropped support for picking up linux/dumplib.h, the library
+	  did not appear to be present during install ADPmp96886. This
+	  reverts a change provided by RedHat by Nobuhiro Tachino
+	  <ntachino@redhat.com>
+
+aachba.c+commsup.c+aacraid.h:
+	- Dropped fib queue list, is not being used.
+
+Version: 1.1.5-2423
+
+README+linit.c:
+	- Hurricane8/4810SAS becomes Huricane44/3800SAS
+
+aachba.c:
+	- enabled aacraid_setup to function from the kernel command
+	  line.
+
+Version: 1.1.5-2424
+
+aachba.c+commsup.c: Alexy Dobriyan <adobriyan@gmail.com> and Eric Sesterhenn <smakebyte@qmx.de>
+	- BUG_ON conversion
+
+linit.c:
+	- clear_user returns 0 on success, not number of bytes zero'd
+	  [ADPmp95861]
+
+Version: 1.1.5-2425
+
+build:
+	- Add 2.4.21-40.6.EL (RHEL3 U8 beta)
+	- Add 2.4.21-41.EL (RHEL3 U8 beta)
+	- Add 2.4.21-43.EL (RHEL3 U8 beta)
+	- Add 2.6.15-1.1830_FC4 (FC4 errata)
+	- Add 2.6.15-1.1831_FC4 (FC4 errata)
+	- Add 2.6.15-1.1833_FC4 (FC4 errata)
+	- Add 2.6.16-1.2069_FC4 (FC4 errata)
+	- Add 2.6.16-1.2096_FC4 (FC4 errata)
+	- Add 2.6.16-1.2096_FC5 (FC5 errata)
+	- Add 2.6.16-1.2107_FC4 (FC4 errata)
+	- Add 2.6.16-1.2108_FC4 (FC4 errata)
+	- Add 2.6.16-1.2111_FC5 (FC5 errata)
+	- Add 2.6.9-34.19.EL (RHEL4 U4 beta)
+	- Add 2.6.9-36.1.EL (RHEL4 U4 beta)
+	- Add 2.6.9-36.EL (RHEL4 U4 beta)
+
+linit.c: Rafael_Ayala@adaptec.com & Mark_Salyzyn@adaptec.com
+	- diskdump_mode is not accessible in 2.4.21-27.EL (RHEL3 QU4)
+
+Version: 1.1.5-2426
+
+aacraid.h:
+	- debugging was turned on for the 1.1.5-2426 build :-(
+
+Version: 1.1.5-2427
+
+aachba.c:
+	- null check of aacraid variable in 2.4 ADPmp97630
+
+commsup.c:
+	- clear out count field in PAUSE_IO request.
+
+Version: 1.1.5-2428
+
+build:
+	- Add 2.6.5-7.257 (SLES9 errata)
+	- Moved 2.6.8-24.11 to module.equiv as alias to 2.6.8-24.21
+	- Moved 2.6.8-24.14 to module.equiv as alias to 2.6.8-24.21
+	- Moved 2.6.8-24.17 to module.equiv as alias to 2.6.8-24.21
+	- Moved 2.6.8-24.18 to module.equiv as alias to 2.6.8-24.21
+	- Moved 2.6.8-24.19 to module.equiv as alias to 2.6.8-24.21
+	- Moved 2.6.8-24.20 to module.equiv as alias to 2.6.8-24.21
+	- Add 2.6.8-24.21 (SuSE 9.2 errata)
+	- Moved 2.6.11.4-21.7 to module.equiv as alias to 2.6.11.4-21.9
+	- Moved 2.6.11.4-21.8 to module.equiv as alias to 2.6.11.4-21.9
+	- Moved 2.6.11.4-21.10 to module.equiv as alias to 2.6.11.4-21.11
+	- Add 2.6.11.4-21.12 (SuSE 9.3 errata) Not quite 100% match to 2.6.11.4-21.11, may work, risk not taken today.
+	- Moved 2.6.13-15.8 to module.equiv as alias to 2.6.13-15.8
+	- Add 2.6.13-15.10 (SuSE 10 errata)
+	- Add 2.6.16.16-1.6 (SLES10/SLED10 RC2)
+
+aachba.c+commctrl.c: Tobias Klauser <tklauser@neurscht.ch> & Andrew Morton <akpm@osdl.org>
+	- use ARRAY_SIZE macro
+
+aachba.c: Christoph Hellwig <hch@lst.de>
+	- fix up request buffer reference
+
+aachba.c: Tejun Heo <htejun@gmail.com>
+	- add cpu cache flushes after kmapping and modifying a page
+
+commsup.c+aacraid.h:
+	- Added support for IOP_RESET_ALWAYS
+
+Version: 1.1.5-2429
+
+build:
+	- Moved 2.6.16-1.2107_FC4-2.6 to module.equiv as alias to 2.6.16-1.2108_FC4-2.6
+	- Moved 2.6.16-1.2069_FC4-2.6 to module.equiv as alias to 2.6.16-1.2096_FC4-2.6
+	- Moved 2.6.15-1.1831_FC4-2.6 to module.equiv as alias to 2.6.15-1.1833_FC4-2.6
+	- Moved 2.6.15-1.1830_FC4-2.6 to module.equiv as alias to 2.6.15-1.1833_FC4-2.6
+	- Moved 2.6.14-1.1637_FC4-2.6 to module.equiv as alias to 2.6.14-1.1644_FC4-2.6
+	- Moved 2.6.13-1.1526_FC4-2.6 to module.equiv as alias to 2.6.13-1.1532_FC4-2.6
+	- Moved 2.6.12-1.1390_FC4-2.6 to module.equiv as alias to 2.6.12-1.1398_FC4-2.6
+	- Moved 2.6.12-1.1387_FC4-2.6 to module.equiv as alias to 2.6.12-1.1398_FC4-2.6
+	- Moved 2.6.12-1.1378_FC3-2.6 to module.equiv as alias to 2.6.12-1.1381_FC3-2.6
+	- Moved 2.6.10-1.770_FC3-2.6 to module.equiv as alias to 2.6.10-1.760_FC3-2.6
+	- Moved 2.6.10-1.766_FC3-2.6 to module.equiv as alias to 2.6.10-1.760_FC3-2.6
+	- Moved 2.6.9-22.25.EL-2.6 to module.equiv as alias to 2.6.9-5.0.3.EL-2.6
+	- Moved 2.6.5-7.243 (+aliases) to module.equiv as alias to 2.6.5-7.244
+	- Moved 2.6.5-7.257 to module.equiv as alias to 2.6.5-7.244
+	- Moved 2.4.21-17.EL to module.equiv as alias to 2.4.21-15.EL
+	- Moved 2.4.21-38.EL to module.equiv as alias to 2.4.21-37.EL
+	- Moved 2.4.21-41.EL to module.equiv as alias to 2.4.21-43.EL
+	- Moved 2.4.21-243 to module.equiv as alias to 2.4.21-241
+	- Moved 2.4.21-251 to module.equiv as alias to 2.4.21-241
+	- Moved 2.4.21-260 to module.equiv as alias to 2.4.21-241
+	- Moved 2.4.21-261 to module.equiv as alias to 2.4.21-241
+	- Moved 2.4.21-273 to module.equiv as alias to 2.4.21-241
+	- Moved 2.4.18-26.8.0 to module.equiv as alias to 2.4.18-24.8.0
+
+commsup.c+comsup.c:
+	- Allow a waiting aac_fib_send to be interruptible ADPmp97267.
+
+Version: 1.1.5-2429-IBM ()
+
+build:
+	- Moved 2.6.8-24.23 to module.equiv as alias to 2.6.8-24.21 (+aliases)
+	- Added 2.6.16.20-0.12 (SLES10 RC3)
+	- Added 2.4.21-37.ELvmnix as alias to 2.4.21-27.ELvmnix. This
+	  relationship has not been proven, added for expediency.
+	- Added 2.4.21-37.0.2.ELvmnix, Compile issue remains.
+
+comminit.c:
+	- Merge kernel.org change to drop GART definition in 2.6.17+
+
+Version: 1.1.5-2430 ()
+
+build:
+	- Added 2.6.16.21-0.8 (SLES10/SLED10)
+	- Added VMware.mak
+
+aachba.c+comminit.c+linit.c+compat.h+rx.c:
+	- Merge changes from 2.4.21-37.0.2.ELvmnix/drivers/scsi/aacraid_esx30/
+
+rkt.c+rx.c+sa.c+compat.h: Thomas Gleixner <tglx@linutronix.de>
+	- scsi: Use the new IRQF_ constansts
+
+Version: 1.1.5-2431 ()
+
+build:
+	- Added 2.6.9-42.EL (RHEL4 U4)
+	- Added 2.4.21-47.EL (RHEL3 U8)
+
+Version: 1.1.5-2431-IBM ()
+Version: 1.1.5-2432 ()
+
+build:
+	- Added 2.6.16.13-4 (SuSE 10.1)
+	- Added 2.6.16-1.2111_FC4 (FC4 errata)
+	- Added 2.6.16-1.2115_FC4 (FC4 errata)
+	- removed 2.6.16-1.2107_FC4, alias of 2.6.16-1.2111_FC4
+	- removed 2.6.16-1.2108_FC4, alias of 2.6.16-1.2111_FC4
+	- Added 2.6.17-1.2139_FC4, alias of 2.6.17-1.2142_FC4
+	- Added 2.6.17-1.2141_FC4, alias of 2.6.17-1.2142_FC4
+	- Added 2.6.17-1.2142_FC4 (FC4 errata)
+	- Added 2.6.16-1.2122_FC5 (FC5 errata)
+	- removed 2.6.16-1.2111_FC5, alias of 2.6.16-1.2122_FC5
+	- Added 2.6.16-1.2133_FC5 (FC5 errata)
+	- Added 2.6.17-1.2139_FC5, alias of 2.6.17-1.2157_FC5
+	- Added 2.6.17-1.2145_FC5, alias of 2.6.17-1.2157_FC5
+	- 2.6.17-1.2157_FC5 (FC5 errata)
+	- removed 2.6.9-22.0.1.EL-2.6, alias of 2.6.9-22.0.2.EL-2.6
+	  (RHEL4 errata)
+	- removed 2.4.21-199 as alias to 2.4.21-278
+	- removed 2.4.21-169 as alias to 2.4.21-278
+	- removed 2.4.18-27.7.x as alias to 2.4.18-19.7.x
+	- removed 2.4.18-27.8.0 as alias to 2.4.18-24.8.0
+	- removed 2.4.9-38 as alias to 2.4.9-31
+	- removed 2.6.11.4-21.11 as alias to 2.6.11.4-21.12
+	- remove aacraid_patches, they do not appear to be relevant
+	  anymore.
+	- problem with 2.6.9-42.EL due to presence of localvers file in
+	  configuration.
+
+aachba.c: Mike Christie <michaelc@cs.wisc.edu>
+	- Convert scsi to the block layer request timer code. The block
+	  layer functions are exactly the ones that used to live in
+	  scsi, so the conversion is rename.
+
+rx.c+rkt.c:
+	- Report the OMRx[0] status if the Adapter is in a Panic state
+	  on init.
+	- Merge rx and rkt code.
+
+sa.c+rx.c+rkt.c+nark.c:
+	- Added support for split bar, by adding an ioremap function.
+
+aachba.c+commsup.c:
+	- return EBUSY, instead of ENODEV, when we are in the middle of
+	  an adapter reset. No consequence to existing management code.
+
+commsup.c:
+	- on adapter reset, make sure we close all outstanding ioctl
+	  commands as well.
+	- Added additional AIF instrumentation code.
+	- Do not call scsi_remove_device as it leaves kref droppings.
+
+install.sh
+	- output of grep fell on floor, every rpm install adds yet
+	  another hostadapter instance. Only side effect was growth of
+	  /etc/modules.conf or /etc/modprobe.conf files.
+
+Version: 1.1.5-2432-IBM ()
+
+build:
+	- problem with 2.6.9-42.EL, 2.6.9-36.1.EL, 2.6.9-36.EL,
+	  2.6.9-34.19.EL, 2.6.9-34.EL, 2.6.9-32.EL, 2.6.9-27.EL
+	  & 2.6.9-22.25.EL with 64 bit largesmp configurations stomping
+	  all over the UP configurations. ADPml01331.
+
+aachba.c+rx.c+commsup.c:
+	- Merge from scsi-misc-2.6, cosmetics.
+
+commsup.c:
+	- Do not call scsi_remove_device as it leaves kref droppings.
+
+Version: 1.1.5-2433-IBM ()
+Version: 1.1.5-2433 ()
+
+build:
+	- 2.4.21-47.EL (RHEL3 U8) was misconfigured when placing
+	  ia32e (em64t) products on the floppy disk.
+
+Version: 1.1.5-2434-IBM ()
+
+build:
+	- Upgraded to VMware DDK v1.0
+	- Altered VMware.inc, VMware.mak, VMware.spec and added
+	  VMware.xml to merge new DDK changes in the asa7211 sample
+	  source (still does not work on latest ESX release).
+	- esxcfg-pciid needed to be made an optional artifact in the
+	  rpm postinstall
+	- use aacraid.xml rather than Vmware.xml for the pciids file.
+	- fill out *all* the pciids in /etc/vmware/pciid/aacraid.xml.
+	- accept vmware-hwdata version 0.99, the DDK's value of 1.00
+	  must be for a followon OS
+	- Added linux_module_heap.c to the source file list to fill in
+	  for some of the linux-kernel-style API, ESX 3.0 deprecated
+	  since the beta.
+	- Add 2.6.8-24.24 (SuSE 9.2 errata)
+	- Remove 2.6.8-24.23 (SuSE 9.2 errata) as alias to 2.6.8-24.24
+	- Changed 2.6.8-24.11 (SuSE 9.2 errata) as alias to 2.6.8-24.24
+	- Changed 2.6.8-24.14 (SuSE 9.2 errata) as alias to 2.6.8-24.24
+	- Changed 2.6.8-24.17 (SuSE 9.2 errata) as alias to 2.6.8-24.24
+	- Changed 2.6.8-24.18 (SuSE 9.2 errata) as alias to 2.6.8-24.24
+	- Changed 2.6.8-24.19 (SuSE 9.2 errata) as alias to 2.6.8-24.24
+	- Changed 2.6.8-24.20 (SuSE 9.2 errata) as alias to 2.6.8-24.24
+	- Changed 2.6.8-24.21 (SuSE 9.2 errata) as alias to 2.6.8-24.24
+	- Add 2.6.11.4-21.13 (SuSE 9.3 errata)
+	- Remove 2.6.11.4-21.12 (SuSE 9.3 errata) as alias to
+	  2.6.11.4-21.13
+	- Changed 2.6.11.4-21.11 (SuSE 9.3 errata) as alias to
+	  2.6.11.4-21.13
+	- Changed 2.6.11.4-21.10 (SuSE 9.3 errata) as alias to
+	  2.6.11.4-21.13
+	- Add 2.6.13-15.11 (SuSE 10.0 errata)
+	- Remove 2.6.13-15.10 (SuSE 10.0 errata) as alias to
+	  2.6.13-15.11
+	- Add 2.6.5-7.267 (SLES9 errata) to module.equiv as alias to
+	  2.6.5-7.244
+	- Add 2.6.5-7.276 (SLES9 errata) to module.equiv as alias to
+	  2.6.5-7.244
+	- Add 2.6.17-1.2519.4.21.el5 (RHEL5 beta1)
+	- Added gcc 4.1.1 to cross compiler set
+	- Added adaptec.spec to adaptec.spec
+
+Version: 1.1.5-2434 ()
+
+README+linit.c+DUD:pcitable:
+	- Changed product names to reflect dropping SAS post-script
+	  when card supports SATA as well.
+
+install.sh:
+	- Added detection of /sbin/vmware-mkinitrd
+
+build:
+	- Moved add-on makes (VMware.* namely) to after the compile
+	  section, but before the prebuilt section so that we can also
+	  populate the rpm.
+	- Added 2.4.9-e.70 to module.equiv file.
+	- Removed 2.6.17-1.2157_FC5 & friends and added them as an alias
+	  of 2.6.17-1.2187_FC5
+	- Added 2.6.17-1.2174_FC5, alias of 2.6.17-1.2187_FC5
+	- Added 2.6.9-42.0.2.EL (RHEL4 errata)
+	- Added 2.6.9-34.0.1.EL as alias to 2.6.9-42.0.2.EL
+	- Added 2.6.9-34.0.2.EL as alias to 2.6.9-42.0.2.EL
+	- Corrected largesmp configurations for x86_64 and ppc64
+	  environments for RHEL4
+	- Corrected kdump configurations for FC5
+
+VMware.mak:
+	- Copy module products to OBJECT_DIR using appropriate names.
+
+comminit.c:
+	- Somehow, debugging left new_comm off, turned it back on.
+	- Added some additional debugging for init struct
+	  investigations, ifdef'd out so no side effects.
+
+commsup.c:
+	- Give a little extra time for the ioctl to complete under
+	  resetiop.
+
+commctrl.c:
+	- return ioctl busy when controller is in reset state.
+
+aacraid.h+rx.c+sa.c+commsup.c+comminit.c:
+	- Added platform functions for interrupt enable, interrupt
+	  handling, packet delivery and transport selection.
+
+aacraid.h+aachba.c:
+	- Added platform functions for bounds checking, read and write.
+
+rx.c+rkt.c+nark.c:
+	- Consolidate startup routines due to addition of transport
+	  selection.
+
+aachba.c:
+	- Move probe_container into aac_get_containers
+
+linit.c:
+	- Added 9005/0288 family (split BAR)
+
+Version: 1.1.5-2435 ()
+
+linit.c+README:
+	- Any references to ICP R0, should be replaced with ICP RO.
+
+aachba.c:
+	- adapter_write is never filled out (ADPml02706)
+
+Version: 1.1.5-2436 ()
+
+README:
+	- Trimmed and Updated list of supported controllers.
+
+build:
+	- Added 2.6.18-1.2747.el5 (RHEL5 beta2)
+
+aachba.c:
+	- Added checking of the parameters fed to the
+	  aac_internal_transfer function (ADPml02711)
+
+install.sh:
+	- Follow KMP guidelines and install driver into the /updates
+	  directory before considering overriding as-shipped driver
+	  modules.
+
+Version: 1.1.5-2437 ()
+
+aacraid.h+aachba.c:
+	- Create _aac_probe_container as a asynchronous response
+	  version of aac_probe_container.
+	- Removed nested, no longer needed for _aac_probe_container.
+
+linit.c+aachba.c:
+	- expose_physicals is now in three states. Default behavior is
+	  to expose protected DASD physical devices, 0 now blocks the
+	  DASD devices and 1 forces full access to those physical
+	  devices.
+
+intall.sh:
+	- some problems with placing modules.dep in updates/modules.dep
+	- speedup dealing with KMP matching.
+
+Version: 1.1.5-2438 ()
+
+aachba.c:
+	- expose_physicals=0 did not work for kernels 2.6.10 and higher.
+
+commsup.c:
+	- we do not deal with a case of a command aborted between
+	  command setup and wait for completion. We also should perform
+	  the BUG_ON check for done within an event lock? (ADPml01735)
+
+aacraid.h+comminit.c+dpcsup.c+rx.c+release.sh+aachba.c:
+	- Adding APRE transport code, ifdef'd with
+	  INITFLAGS_APRE_SUPPORTED
+
+aacraid.h+commctrl.c+commsup.c+csmi.c+dpcsup.c+rx.c
+:
+	- change hw_fib references to hw_fib_va to prevent namespace
+	  collision with struct hw_fib.
+
+install.sh:
+	- corrected minor scripting problem.
+
+Version: 1.1.5-2439 ()
+
+rx.c+commsup.c:
+	- Support USE_OTHER_METHOD for Sunrise Lake IOP reset.
+
+rx.c+comminit.c+aacraid.h+linit.c:
+	- Merge changes in 2.6.20 into driver, dropping pt_regs from
+	  interrupt service routines.
+
+rkt.c:
+	- Merge in changes due to code inspection.
+
+linit.c+aachba.c: Mark Salyzyn & Christoph Hellwig
+	- Use slave configure returning ENXIO to block physicals for
+	  2.6.15+
+
+aachba.c+aacraid.h+comminit.c+linit.c+rkt.c+rx.c+sa.c:
+	- Backmerge scsi-misc-2.6 tree, all cosmetic style issues.
+
+aachba.c: Mark Salyzyn & Christoph Hellwig <hch@infradead.org>
+	- Removed kernel command line parsing from 2.6 based kernels,
+	  already implemented as <module>.<parm>=
+
+install.sh:
+	- Do not check for specifically AMD-K7 or AMD athlon processors
+	  when determining athlon support, instead accept just AMD as
+	  enough of an indicator (ADPml03707)
+
+Version: 1.1.5-2440 ()
+
+build:
+	- Add 2.6.18-8.el5 (RHEL5 RC/GA)
+	- Removed 2.6.17-1.2519.4.21.el5 (RHEL5 beta1)
+	- Removed 2.6.18-1.2747.el5 (RHEL5 beta2)
+	- Removed 2.6.16.20-0.12 (SLES10 RC3) (ADPml03802)
+
+aacraid.h+linit.c+nark.c+rkt.c+rx.c: Adrian Bunk <bunk@susta.de>
+	- Manually applied a cleanup patch that moves function externs
+	  to aacraid.h rather then defined and referenced where needed.
+
+install.sh:
+	- Do not process Module.symvers variants until primary modules
+	  and module.equiv variants are discovered and fleshed out
+	  (ADPml03802)
+
+Version: 1.1.5-2441 ()
+
+build:
+	- Removed 2.6.15-git12-6 (SLES10 beta 1)
+	- Removed 2.6.16-rc5-git9-2 (SLES10 beta 7)
+	- Removed 2.6.16.16-1.6 (SLES10/SLED10 RC2)
+
+commctrl.c:
+	- Added code to sense if the incoming frame has 64 bit sg.
+	  (ADPml03719)
+
+Version: 1.1.5-2441-IBM ()
+Version: 1.1.5-2442 ()
+
+build:
+	- Added 2.4.9-e.71 to modules.equiv
+	- Added 2.6.9-42.0.3.EL to modules.equiv
+	- Added 2.6.9-42.0.8.EL to modules.equiv
+
+linit.c+dpcsup.c+comminit.c+commctrl.c:
+	- Switch from (unsigned long) or (long) casts to (ptrdiff_t)
+	  casts wherever the intent is to convert a pointer to a
+	  same sized integer or back.
+
+comminit.c+rx.c+commsup.c:
+	- Suppress compile warning messages, change kernel version
+	  ifdefs to accomodate.
+
+README+DUD:pcitable+VMWare.xml+DKMS:readme.txt.orig:
+	- Added 9005:0285:108e:7aac for SUN RAID 4i4e
+	- Added 9005:0285:15d9:02b5 for SMC AOC-USAS-S4i (ADPml04007)
+	- Added 9005:0285:15d9:02b6 for SMC AOC-USAS-S8i (ADPml04007)
+	- Added 9005:0285:15d9:02c9 for SMC AOC-USAS-S4iB (ADPml04007)
+	- Added 9005:0285:15d9:02ca for SMC AOC-USAS-S8iB (ADPml04007)
+
+dpcsup.c+linit.c+aacraid.h+commsup.c:
+	- Set the FIB_CONTEXT_FLAG_TIMED_OUT flag for the commands that
+	  are involved in error recovery; when the completion interrupt
+	  happens, simply free the fib resources, do not complete the
+	  command to the OS. (ADPml03975)
+
+commsup.c+aachba.c:
+	- Widen the net for capturing 'busy' to also include the
+	  eh_active state flag if available. (ADPml03975)
+
+linit.c:
+	- For kernels from 2.6.0 to 2.6.12 we set the queue_depth of the
+	  device to zero during the error recovery handler to trick the
+	  LOWER layers to block commands. These kernels have a locking
+	  bug where the error handler holds the host_lock, but commands
+	  issued by user or plug-n-play scan requests manage to slip
+	  through and hit the LOWER layers where host_lock is taken as
+	  well *before* the host check for whether we are in error
+	  recovery or not. Later kernels do not take the host_lock in
+	  the error recovery (ADPml03975)
+	- Added an aac_eh_abort handler, simply testing for TUR and
+	  setting FIB_CONTEXT_FLAG_TIMED_OUT flag and return SUCCESS.
+	  Return FAILED for any other command. TUR is simple enough
+	  that the outstanding portions of the request in the Adapter
+	  are inert. We could apply this to INQUIRY and READ CAPACITY
+	  for the same reasons ... but chose not to at this time
+	  (ADPml03975)
+
+aachba.c:
+	- If the device is offline when the completion handler is called,
+	  free the FIB resources and return in srb_callback (ADPml03975)
+
+Version: 1.1.5-2443 ()
+
+linit.c:
+	- For kernels from 2.6.0 to 2.6.12 we also set the
+	  device_blocked flag during the error recovery handler to trick
+	  the LOWER layers to block commands (ADPml03975)
+	- When we wake up from a sleep, before retaking the locks,
+	  innoculate the block I/O for kernels 2.6.0 through 2.6.12.
+	  (ADPml03975).
+	- The 2.4 calculation for queuedepth erroneously divided the
+	  entire pool for every known target, this limits the number
+	  of outstanding commands available for the logicals by too
+	  much.
+	- If we have a definition of crashdump_mode that we can live
+	  with, let us call aac_poll during error recovery even if
+	  we do not have the ability to enhance msleep or ssleep
+	  calls (ADPml04175).
+	- Simon Waters <simonw@zynet.net> discovered a panic in
+	  vsnprintf within aac_procinfo. I added checking of
+	  (bytes_available - total_len) to make sure it is never
+	  negative in value.
+	- Modified abort handler to close all device related commands.
+
+rx.c:
+	- optimized code by using likely() and unlikely() conditional
+	  hints.
+	- RESET_IOP, RESET_IOP_ALWAYS and RESET_IOP_ALTERNATE handling
+	  adjusted. Added recognition of AAC_FEATURE_MU_RESET.
+
+aacraid.h:
+	- Added definition for AAC_FEATURE_MU_RESET
+
+aachba.c:
+	- If the device is offline when the completion handler is
+	  called, free the FIB resources and return in io_callback,
+	  _aac_probe_container2 and get_container_name_callback
+	  (ADPml03975)
+	- Added instrumentation to report if a scsi command is corrupt.
+	- Adjusted the command line handling to be compliant with
+	  2.6 standards (aacraid.parm=value) and add the 'dd' flag
+	  recognition to set the expose_physicals flag to zero
+	  (ADPml04274)
+	- Added command line parsing 'back' into 2.6 version, but only
+	  perform the parsing for the 'dd' parameter (ADPml04274)
+	- Added a 'dud' parameter that when set, set the
+	  expose_physicals flag to zero (ADPml04274)
+	- When a command goes through the error handler, it gets
+	  reissued to the controller, so that we have multiple FIBs
+	  referencing the same command. Drop the re-issued command on
+	  the floor if it is already on the Adapter (ADPml03975).
+
+linit.c+aacraid.h:
+	- turn on diskdump_mdelay, diskdump_msleep and diskdump_ssleep
+	  even though we do not have DUMPLIB support. Remove calls to
+	  diskdump_update, which did not export under RHEL4 until U6
+	  (ADPml04175)
+
+Version: 1.1.5-2444-IBM ()
+
+build:
+	- Added 2.6.18-1.2200.fc5-2.6 as equivalent to 2.6.18-1.2239.fc5-2.6
+	- Added 2.6.18-1.2239.fc5-2.6
+	- Added 2.6.18-1.2257.fc5-2.6
+	- Added 2.6.18-1.2798.fc6
+	- Added 2.6.18-1.2849.fc6-2.6 as equivalent to 2.6.18-1.2869.fc6-2.6
+	- Added 2.6.18-1.2868.fc6-2.6 as equivalent to 2.6.18-1.2869.fc6-2.6
+	- Added 2.6.18-1.2869.fc6-2.6
+	- Added 2.6.19-1.2895.fc6-2.6 as equivalent to 2.6.19-1.2911.fc6-2.6
+	- Added 2.6.19-1.2911.fc6-2.6
+	- Moved 2.6.9-27.EL (RHEL4 U3 rc) as equivalent to 2.6.9-34.EL (RHEL4 U3)
+	- Moved 2.6.9-32.EL (RHEL4 U3 beta) as equivalent to 2.6.9-34.EL (RHEL4 U3)
+	- Moved 2.6.5-7.252 (SLES9 update) as equivalent to 2.6.5-7.244 (SLES9 SP3)
+
+aachba.c:
+	- Fix some compiler warnings associated with typecasting
+	  constants to scsi_done.
+	- if HAS_BOOT_CONFIG is enabled, default for expose_physicals
+	  is zero (ADPml04274)
+	- When issuing the probe_container, we need to set the device
+	  as online so it passes the device validity check (ADPml04333,
+	  ADPml04331 and ADPml03975)
+
+linit.c:
+	- For kernels from 2.6.0 to 2.6.12 we set the queue_depth of the
+	  device to zero and the device_blocked flag during the error
+	  recovery abort handler to trick the LOWER layers to block
+	  commands. These kernels have a locking bug where the error
+	  handler holds the host_lock, but commands issued by user or
+	  plug-n-play scan requests manage to slip through and hit the
+	  LOWER layers where host_lock is taken as well *before* the
+	  host check for whether we are in error recovery or not.
+	  Later kernels do not take the host_lock in the error recovery
+	  abort handler (ADPml03975)
+	- When we wake up from a printk, or possible dprintk,
+	  innoculate the blocking I/O for kernels 2.6.0 through 2.6.12
+	  and consider altering the locks (ADPml03975).
+	- List of outstanding commands is for a device, so no need to
+	  repeat the debug information outlining the id for each command.
+
+Makefile+aacraid.h:
+	- Define HAS_BOOT_CONFIG if in a limited resource driver, remove
+	  optional pieces. This is one means to compress the resources
+	  on the precious floppy disks. (ADPml04333)
+
+install.sh:
+	- Code to detect the existence of the /updates/ placement was
+	  adjusted from an erroneous 'for' loop into a 'if' test.
+	  (ADPml04333)
+	- Do not complain if the modules.cgz is truncated, if it can
+	  not provide the module, it will be evident later as missing.
+	  (ADPml04333)
+
+sa.c:
+	- aac_sa_init drops pt_regs argument for kernels above 2.6.18
+
+Version: 1.1.5-2445-IBM ()
+
+build:
+	- Added 2.6.11.13mdk-1-1mdk
+	- Added 2.6.12.21mdk-1-1mdk
+
+aachba.c+linit.c+release.sh:
+	- Added BOOTCD ifdef to fortify initialization time firmware
+	  print diagnostics for these configurations.
+
+Version: 1.1.5-2444 ()
+
+build:
+	- Added 2.6.18-8.1.1.el5-2.6
+	- Moved 2.6.9-36.EL as alias to 2.6.9-42.EL
+	- Added 2.6.9-42.0.10.EL
+	- Added 2.6.19-1.2288.fc5
+	- Added 2.6.19-1.2288.2.1.fc5 as alias to 2.6.19-1.2288.2.4.fc5
+	- Added 2.6.19-1.2288.2.4.fc5
+	- Added 2.6.19-1.2911.6.4.fc6 as alias to 2.6.19-1.2911.6.5.fc6
+	- Added 2.6.19-1.2911.6.5.fc6
+	- Added 2.6.20-1.2925.fc6
+
+aachba.c:
+	- Added display of TSID.
+
+install.sh:
+	- for ia32e configuration, any Intel processor running currently
+	  on a 64 bit kernel will do (Son of ADPml04333 and ADPml103707)
+
+Version: 1.1.5-2446-IBM ()
+
+build:
+	- Moved FC ia64 and ppc binaries on driver disks into an
+	  FC-enterprise disk to free up mainstream space since fc6
+	  release.
+	- Moved 2.6.5-7.134 (SLES9 SP1 RC) as alias to 2.6.5-7.139
+	  (SLES9 SP1)
+
+Version: 1.1.5-2445 ()
+
+build:
+	- Added support for RedHat modules.alias file. Base design
+	  on ddiskit-0.9.8. Maybe one day we could use RedHat's
+	  scripting merged into our meta-build.
+
+linit.c+aachba.c+rx.c+dpcsup.c+commsup.c+comminit.c+commctrl.c+aacraid.h:
+	- Adjust code to reflect a back-port of scsi-misc-2.6
+	  March 21 2006 snapshot. All changes are cosmetic.
+
+Makefile+aacraid.h:
+	- Added HAS_SECTOR_T and check for definition of sector_div
+	  macro. If sector_t is 64 bit, then make sure that the return
+	  value maxes out rather than wraps.
+	- Added kdump config detection, turns off SCSI_HAS_DUMP.
+
+README+DUD:pcitable+VMWare.xml+DKMS:readme.txt.orig+Linux:pci.ids:
+	- Changed 9005:0285:108e:7aac to SUN STK RAID REM
+	- Added 9005:0285:108e:0286 for SUN SG-XPCIESAS-R-IN
+	- Added 9005:0285:108e:0287 for SUN SG-XPCIESAS-R-EX
+	- Changed 9005:0285:15d9:02c9 for SMC AOC-USAS-S4iR
+	- Changed 9005:0285:15d9:02ca for SMC AOC-USAS-S8iR
+
+rx.c+aachba.c:
+	- For 2.6.19 and above, use reset_devices flag, for others
+	  read the command line and pick up the reset_devices kernel
+	  flag. Reset the adapter as part of initialization.
+	- Check if the interrupts have been enabled, this is a
+	  fine clue that another driver preceded this one. Useful
+	  for hot transitions from one operating system to the
+	  next (kexec and kdump are but two examples). This is a
+	  substitute for the forced reset_devices flag.
+
+linit.c:
+	- Added kernel version or UTS_RELEASE to the Firmware Print
+
+linit.c+csmi.c+aachba.c:
+	- Changed serial number printout from %x to %06X format.
+
+sa.c:
+	- added aac_sa_restart_adapter method stub.
+
+rx.c: Mark Salyzyn <aacraid@adaptec.com> & Duane Cox <dcox@conxxus.com>
+	- Set adapter_sync_cmd before permitting adapter reset
+	  commands.
+	- If we restart the adapter in the context of the driver,
+	  extend startup timeouts less than 5 minutes to 5 minutes.
+
+Makefile:
+	- Also look in drivers/scsi/scsi_scan.c for scsi_scan_host()
+
+linit.c:
+	- Added driver_version to sysfs
+	- added support for 12 digit serial number.
+	- exported aac_show_serial_number for aachba and csmi.c
+	- Lock mishandling when debugging off (ADPml03975).
+
+aachba.c+csmi.c:
+	- Call aac_show_serial_number to acquire serial number value.
+
+commctrl.c+commsup.c+linit.c:
+	- Turn off ioctl and aif support if using the BOOT
+	  configuration to save space.
+
+aachba.c:
+	- dropped definition of min(a,b) because it is in compat.h
+	- ifdef on 2.6.21 to saved_command_line as a pointer
+	  Steve Fox <drfickle@linux.vnet.ibm.com>
+	- Drop check for HIDDEN as this is not compatible with older
+	  hardware.
+
+fwdebug.c:
+	- if in_atomic(), just time out immediately rather than wait
+	  for the Firmware to catch up
+
+Version: 1.1.5-2446 ()
+
+build:
+	- Added 2.6.9-55.EL (RHEL4 U5)
+	- Added to all legacy RH releases the RHEL_VERSION and
+	  RHEL_UPDATE that correspond with this releases.
+
+aachba.c+comminit.c+commsup.c+dpcsup.c:
+	- replace kmalloc/memset pairs with kzalloc where possible.
+
+fwdebug.c:
+	- use vsnprintf to protect the on-stack firmware buffer.
+	- Add buffering to guarantee delivery of messages issued
+	  during interrupt service routines. Easier said than done,
+	  and includes references to architectural specific assembler
+	  fragment helpers to help maintain atomic operations.
+	- Fortified the conditions where we time out immediately
+	  rather than wait for the Firmware to catch up. These
+	  include host locks, interrupt contexts and when error
+	  recovery actions are currently active. We only allow a
+	  sleep, effectively, at the [aacraid] background thread.
+	- Switch to using readb,readl,writeb,writel to communicate
+	  with the Firmware print buffer, enforce ordering by doing a
+	  readback shortly before issuing the count.
+
+commsup.c:
+	- polled fwprint in adapter kernel thread.
+
+aacraid.h+commsup.c+linit.c:
+	- Added the ability to force an IOP_RESET_ALWAYS from user
+	  initiated sources. 'reset_host!' to the proc node, or
+	  and '!' written to the sys reset_host node.
+
+README+DUD:pcitable+VMWare.xml+DKMS:readme.txt.orig+Linux:pci.ids:
+	- Changed 9005:0285:108e:0286 for SUN STK RAID INT
+	- Changed 9005:0285:108e:0287 for SUN STK RAID EXT
+
+install.sh:
+	- Added support to decode xen and xen Linux executables,
+	  file's magic was not up to the task.
+
+grub.awk:
+	- Added support to detect a xen boot configuration and lift
+	  out the Linux kernel and initrd references.
+
+linit.c:
+	- Added support for recognizing the RHEL_VERSION and
+	  RHEL_UPDATE when reporting to the fwprint
+	- aac_queuedepth for 2.4 kernels did not check if the
+	  incoming scsi_device was a nul or not (ADPml05512)
+
+aacraid.h+linit.c:
+	- Given the apparent instability of long term use of
+	  fwprintf, I suggest keeping it off for releases except
+	  on the bootable CD where things are more controlled. To
+	  aid in that, have added fwprintf next to the dprintk
+	  flag output in /proc and /sys.
+
+aachba.c:
+	- Turn off physicals access by default on the Bootable CD,
+	  allow it to be changed by insmod paramters unlike the
+	  BOOT config which was motivated by code space issues.
+
+rx.c+commctrl.c:
+	- Added more AAC_DEBUG_INSTRUMENT_IOCTL_SENDFIB
+	  instrumentation (ADPml04695)
+
+Version: 1.1.5-2447-IBM ()
+
+rx.c+sa.c+aacraid.h: Mark Salyzyn & Rainer Malitzke <malitzke@metronets.com>
+	- Initialize adapter_deliver with aac_rx_deliver_producer
+	  (http://bugzilla.kernel.org/show_bug.cgi?id=8469)
+
+csmi.c:
+	- linux/ioctl32.h has been deprecated in 2.6.21
+
+aachba.c:
+	- Corrected issue with AAC_DEBUG_INSTRUMENT_SG_PROBE
+	- Respond with DID_BUS_BUSY to SRB_STATUS_BUSY.
+
+aachba.c: Mark Salyzyn & James Bottomley <James.Bottomley@SteelEye.com>
+	- fix panic on short Inquiry
+
+aacraid.h+rx.c:
+	- MU_RESET was moved to Options2
+
+aacraid.h+linit.c+aachba.c:
+	- Added support for FUA, use IO_SUREWITE for now.
+	- Added mode page 8 in order to support WCE and FUA
+	- enabled page 8 and page 3f from scsi layers
+
+rx.c+aachba.c:
+	- issue commit config if the adapter was reset during
+	  initialization.
+
+Version: 1.1.5-2447 ()
+
+build:
+	- corrected configuration files for 2.6.5-1.358 (FC2)
+	  namely adding the x86_64 & x86_64-smp configurations.
+
+aachba.c:
+	- SCSI SYNCHRONIZE observes the range fields and only
+	  blocks on writes remaining in the command queue.
+
+compat.h+aachba.c: Fujita Tomonori <fujita.tomonori@lab.ntt.co.jp>
+	- remove the non-use-sg case
+	- convert to use the data buffer accessors
+
+csmi.c+dpcsup.c+sa.c+compat.h:
+	- removed/moved include linux/pci.h
+
+linit.c:
+	- Add change scsi queue depth
+	- Increased resource cleanup of aac_shutdown
+
+linit.c+commsup.c:
+	- After 60 seconds of additional waiting in reset handler,
+	  if still have outstanding commands, issue a blind
+	  reset to the SRL adapters.
+
+aacraid.h+linit.c+commsup.c+aachba.c:
+	- Added support for options ignore reset (SRL).
+
+Version: 1.1.5-2448 ()
+Version: 1.1.5-2448-IBM ()
+
+build:
+	- Add 2.4.21-50.EL (RHEL3 U9)
+	- Drop 2.4.21-9.EL i686 (RHEL3 U1) due to RHEL3 floppy overload
+	- Add 2.6.16.46-0.12 (SLES10/SLED10 SP1)
+
+rx.c:
+	- Only set commit if in default state should the adapter
+	  be reset during initialization.
+
+linit.c:
+	- check if thread running before attempting to shut it down.
+
+linit.c: Brian King <brking@linux.vnet.ibm.com>
+	- driver_version does not make sense given presence of
+	  /sys/module/aacraid/version in later kernels.
+
+linit.c:
+	- Kernels that use the reboot notifier can not perform a
+	  clean (interrupts disabled) shutdown of the controller
+	  because sd_shutdown is called afterwards.  This makes
+	  kexec always issue an Adapter Reset in transition.
+	- SCSI_HAS_SCSI_IN_DETECTION needs to be considered 'off'
+	  for any vmkernel builds.
+
+Version: 1.1.5-2449-IBM ()
+Version: 1.1.5-2449 ()
+
+build:
+	- Fixup 2.6.16.46-0.12 (SLES10/SLED10 SP1) xen, kdump and xenpae
+	  configurations.
+	- Fixup 2.6.16.13-4 (SuSE 10.1) x86_64 confifurations
+
+aachba.c:
+	- aac_build_sgraw move dev assignment into sub-block.
+	- Test unit ready behind an already outstanding long command
+	  to a physical device, assume sequential and report back
+	  NEEDS_RETRY (ADPml05517)
+	- Merged code from 2.6.16.46-0.12 (setinqserial). Why did SuSE
+	  not submit this to kernel.org? (ADPml06710)
+
+aachba.c+aacraid.h+commsup.c: Andrew Morton <akpm@linux-foundation.org>
+	- rename check_reset to aacraid_check_reset
+	- rename aacraid_check_reset to aac_check_reset
+
+linit.c:
+	- Added sysfs uart node, returns YES if supported, NO if
+	  firmware prints are disabled. Printing reports driver
+	  timestamp.
+	- Added proc 'uart=' ability as well, same drill except
+	  that one checks the flags fields for fwprintf to
+	  determine if the feature has a chance.
+	- bug in proc writes, if they are malformed at all, they
+	  never return (!) returning 0 on writes is bad m'kay.
+
+linit.c: Alan Cox <alan@lxorguk.ukuu.org.uk>
+	- Check to make sure ioctl caller is a root user.
+
+README+DUD:pcitable+VMWare.xml+DKMS:readme.txt.orig+Linux:pci.ids:
+	- Added 9005:0285:9005:02ce for 51245
+	- Added 9005:0285:9005:02cf for 51645
+	- Added 9005:0285:9005:02d0 for 52445
+	- Added 9005:0285:9005:02d1 for 5405
+
+README+DUD:pcitable+VMWare.xml+DKMS:readme.txt.orig
+	- Added 9005:0285:108e:7aae for SUN STK RAID EM
+
+DUD:pcitable:
+	- Changed 9005:0285:108e:0286 to SUN STK RAID INT
+	- Changed 9005:0285:108e:0287 to SUN STK RAID EXT
+
+rx.c:
+	- If the Adapter responds 'Use IRCSR to reset' or 0x3803000F
+	  then make sure we transition to the alternate code.
+	  (ADPml06338)
+
+aachba.c+aacraid.h+linit.c+fwdebug.c:
+	- Drop most of the fwdebug instrumentation (ADPml06620)
+
+Version: 1.1.5-2450-IBM ()
+
+linit.c:
+	- removed warning about seconds being unused if the
+	  firmware prints are disabled.
+
+linit.c: Alan Cox <alan@lxorguk.ukuu.org.uk>
+	- Check to make sure compat ioctl caller is a root user.
+
+aachba.c:
+	- Linux standard codify SLES10 setinqserial code.
+	- Added retrieval of Container UID as serial number, so
+	  that VPD does not change through a morph (APDml06710)
+	- corrected locking around search for outstanding commands
+	  to physical targets. (ADPml05517)
+
+aachba.c+commsup.c:
+	- Merge in cosmetics from scsi-misc-2.6 July 18th 2007
+	  snapshot
+
+aachba.c: Ellen Gardiner <gardiner@us.ibm.com>
+	- place flush_kernel_dcache_page() within an ifdef of
+	  ARCH_HAS_FLUSH_ANON_PAGE
+
+release.sh+aacraid.h+fwdebug.c:
+	- filter out AAC_CSMI, AAC_PRINTF_ENABLE, GCC warning filters
+	  and fwprintf
+
+install.sh:
+	- change from 'echo <files> | grep -v orig' to
+	  'ls <files> | grep -v orig' form to correctly list the
+	  files checked to ensure that the initrd contents are
+	  correct.
+	- If /etc/modprobe.conf.local exists s references by
+	  /etc/modprobe.conf and there is currently no references
+	  to aacraid in /etc/modprobe.conf, then use the local
+	  configuration file to add the references instead.
+
+rx.c: Tim Ng <tim_ng@adaptec.com>
+	- drain OutboundQueue when performing a reset of the adapter
+
+Version: 1.1.5-2450 ()
+
+build:
+	- SLES10 (2.6.16.21-0.8 & 2.6.16.46-0.12) utilized the gcc 4.0.2
+	  cross compiler for i586 configurations, it was supposed to use
+	  gcc 4.1.1 (ADPml06710)
+
+Version: 1.1.5-2451 ()
+
+Linux:pci.ids+DKSM:readme.txt.orig:
+	- Added 9005:0285:108e:7aae for SUN STK RAID EM
+
+install.sh
+	- A module failing to install should not be considered fatal,
+	  adjusted the message to suggest that the inbox driver is more
+	  advanced than the package. We still error with a code from
+	  the install script with the hopes that the user will
+	  intelligently accept this should it be a late model operating
+	  system.
+
+aachba.c:
+	- RHEL5 does not exibit the problem with CD writers (ADPml05517)
+	  and thus we will ifdef the code out for the later OS releases.
+	- For *released* SMC cards, support coming up with SMC vendor
+	  id in setinqstr for all 'AOC*' cards.
+	- default maximum num physicals should Get_BusInfo fail is set to
+	  16 (ok for SCSI, kind'a limiting for SAS).
+
+aachba.c+linit.c+aacraid.h:
+	- For OEM release we support sharing the setinqstr handler. Need
+	  to rationalize this differently?
+
+linit.c+aacraid.h: inspired by Sri Dharmasanam <sdharmas@cisco.com>
+	- use the pci device shutdown function to provide a
+	  post-sd_shutdown notification for 2.6.0-2.6.11 kernels.
+	  This will help reduce the occurrences of Bad Stripes.
+	- Move registration of reboot notifier to beginning of
+	  init function so that it is called last (FILO) on way
+	  down.
+
+linit.c:
+	- Set default timeouts to 45 seconds for the arrays.
+	- Added hba_max_channel, hba_max_physical and hba_max_array to
+	  sysfs. Only available for AAC_DEBUG_INSTRUMENT_SETUP for now.
+	- Make sure the outstanding command is either Async or
+	  NoResponseExpected before trusting the callback_data value.
+	  (ADPml08062)
+
+linit.c: Alan Cox <alan@lxorguk.ukuu.org.uk>
+	- Check to make sure config ioctl caller is a root user.
+
+linit.c: Fujita Tomonori <tomof@acm.org>
+	- Added use_sg_chaining enabled.
+
+aacraid.h:
+	- Turn off AAC_CSMI to conserve space.
+	- dropped maximum transfer size to 64K for kernels less than
+	  2.4.18 as we find some of them are capable of producing
+	  requests with too many scatter gather elements coupled with
+	  >64K element sizes that need to be split for legacy cards
+	  (ADPml07201)
+
+Version: 1.1.5-2452 ()
+
+build:
+	- Add 2.6.18-53.el5 (RHEL5.1 RC2)
+	- Added 2.6.9-65.EL (RHEL4 U6 RC)
+	- upgraded to DKMS 2.0.17.4 and added debian version as well.
+	- Add 2.6.22-14.46 (Debian 7.10)
+
+aacraid.h+commsup.c+dpcsup.c+linit.c:
+	- Added FIB_CONTEXT_FLAG to report that there is a scsi layer
+	  context associated with this FIB. (ADPml08062)
+	- if check_reset=-1, then use the always reset feature, rather
+	  than accepting the Firmware reporting that the reset is
+	  disabled. This permits us to bypass Q/A disable to ensure
+	  that the reset paths are doing what we expect (ADPml08062)
+
+commsup.c:
+	- Do not send a VM_Closeall on a blind reset.
+
+aacraid.h+linit.c+aachba.c:
+	- Add a Quirk for the ScsiPortCommand64 missing.
+
+Makefile+linit.c+VMware.mak+aacraid.h+aachba.c:
+	- Added HAS_COMPILE_H
+	- renamed HAS_DUMPLIB to HAS_DISKDUMPLIB_H
+	- renamed HAS_DISKDUMP to HAS_DISKDUMP_H
+	- renamed HAS_BOOTSETUP to HAS_BOOTSETUP_H
+	- renamed HAS_DUMP_DISKDUMP to HAS_DISKDUMP_H
+
+aacraid.h+rx.c+sa.c+Makefile: Jeff Garzik <jeff@garzik.org>
+	- irq_removal: scsi driver trivial. defined
+	  HAS_NEW_IRQ_HANDLER_T to aid transition.
+
+commsup.c: Stephen Rothwell <sfr@canb.auug.org.au>
+	- don't assign cpu_to_le32(constant) to u8
+
+Version: 1.1.5-2453 ()
+
+build:
+	- Removed 2.6.9-65.EL (RHEL4 U6 RC)
+	- Added 2.6.9-67.EL (RHEL4 U6)
+
+aacraid.h+aachba.c+linit.c:
+	- Add support for scsi device raid level report. This
+	  is an experimental feature for the moment.
+	- Add in support for caching commands (FUA and
+	  SYNCHRONIZE_CACHE) to be disabled either permanently, or only
+	  when the card's cache is protected.
+
+aacraid.h+aachba.c+linit.c+commsup.c:
+	- Added initial crack at support for Voodoo Lite (JBOD).
+
+compat.h+commctrl.c+comminit.c+dpcsup.c+linit.c+aachba.c:
+	- switch to uintptr_t from ptrdiff_t, inspired by scsi-misc-2.6
+	  changes on November 5 2007
+
+dpcsup.c:
+	- Removed code to limit number of allocations attempted
+	  for AIF slots. This is now in-line with scsi-misc-2.6.
+
+linit.c:
+	- Use existing fsa_dev info to count the number of containers
+	  to make a more intelligent division of the initial queue
+	  depth. JBOD drives remain as-discovered though.
+
+linit.c: Alan Cox <lxorguk.ukuu.org.uk>
+	- Address weakness in the AACRAID driver, change capability
+	  checking from ADMIN to RAWIO.
+
+aachba.c: Fujita Tomonon <tomof@acm.org>
+	- replace sizeof sense_buffer with SCSI_SENSE_BUFFERSIZE
+
+aachba.c:
+	- Followup to change to SCSI_SENSE_BUFFERSIZE, switch to
+	  min() macro.
+
+README+DUD:pcitable+VMWare.xml+DKMS:readme.txt.orig+Linux:pci.ids:
+	- Added 9005:0285:9005:02d4 for 2045
+	- Added 9005:0285:9005:02d5 for 2405
+	- Added 9005:0285:9005:02d6 for 2445
+	- Added 9005:0285:9005:02d7 for 2805
+
+linit.c: James Bottomley <James.Bottomley@SteelEye.com>
+	- removed use of use_sg_chaining. Only on for 2.6.23-2.6.24.
+
+Version: 1.1.5-2454 ()
+
+linit.c+commsup.c+commctrl.c+aachba.c+aacraid.h:
+	- removes pigs in space
+
+linit.c:
+	- Added SUPPORTED_JBOD to flags (sysfs & procfs) when jbod
+	  adapter is detected.
+	- fixed the serial number report.
+
+aacraid.h+aachba.c:
+	- Added definitions and enabled support code for AifEnAddJBOD
+	  and AifEnDeleteJBOD.
+
+commctrl.c:
+	- wrapped the fib lock around the fib context.
+
+aacraid.h+aachba.c+rx.c+linit.c+sa.c:
+	- Added MSI capability.
+
+linit.c: Fujita Tomonori <tomof@acm.org>
+	- iommu sg merging: use pci_set_dma_max_seg_size
+
+aachba.c:
+	- Drop valid-data bit in sense return data.
+	- optimized set_sense to minimum functionality.
+
+aachba.c+linit.c+commsup.c:
+	- problem with state of Ignore Adapter Reset.
+
+fwdebug.c:
+	- added aacraid.firmware_debug insmod parameter.
+
+commsup.c: Marcin Slusarz <marcin.slusarz@gmail.com>
+	- le*_add_cpu conversion
+
+Version: 1.1.5-2455 ()
+
+install.sh:
+	- Return does not work in context of script, only subroutines,
+	  use exit instead.
+	- If a package has been relocated, and we can not find the
+	  master location, use the current working directory.
+	- If a make init rd command is not found, then revert the
+	  backup copy of the initrd before exiting with the error.
+	- Added support for update-initramfs command present in
+	  Gutsy.
+
+linit.c:
+	- As proposed by Jonas Bonn <jonas@southpole.se> changed
+	  struct pci_device_id table to use DECLARE_PCI_DEVICE_TABLE
+	  if available.
+	- use __devinitdata or __devinitconst depending on kernel
+	  vintage for the legacy pci_device_id table definitions.
+
+aacraid.h+aachba.c+linit.c:
+	- Added definition and code for a ST_NOT_READY response from
+	  an I/O request.
+	- Added FSCS_NOT_READY bit in VM_NAMESERVE
+	- Added Power Management Initflags and option report.
+	- Add defintion and code for issuing START_STOP fib.
+
+aachba.c:
+	- Added additional instrumentation for
+	  AAC_DEBUG_INSTRUMENT_VM_NAMESERVE (ADPml08612)
+
+commsup.c:
+	- Added a retry loop handler for queued scans (ADPml08614
+	  and ADPml08615)
+
+aachba.c+aacraid.h+commctrl.c+commsup.c+dpcsup.c+linit.c+rx.c+sa.c:
+	- Synchronize to latest scsi-misc-2.6 changes on April 30 2008
+	- Changed from class_device_attribute to device_attribute (why?)
+
+README+DUD:pcitable+VMWare.xml+DKMS:readme.txt.orig+Linux:pci.ids:
+	- Change 9005:0285:9005:02d4 for ASR-2045
+	- Change 9005:0285:9005:02d5 for ASR-2405
+	- Change 9005:0285:9005:02d6 for ASR-2445
+	- Change 9005:0285:9005:02d7 for ASR-2805
+	- Add all 'G' cards.
+
+aachba.c+commsup.c+aacraid.h+linit.c+rx.c+commsup.c:
+	- Merged upcoming VMWare port
+
+linit.c: Harvey Harrison <harvey.harrison@gmail.com>
+	- aac_show_serial_number (2.6.25+) should be static
+
+build:
+	- Add VMware 3.5 ddk
+	- Build VMware 3.0, 3.0.1, 3.0.2 and 3.5 products ADPml09413
+
+Version: 1.1.5-2456 ()
+
+VMware*.spec:
+	- Print out instructions on how to do the vmeare-mkinitrd.
+	- Replace yes with true.
+
+build:
+	- Add SLES9.4 2.6.5-7.308
+	- Add RHEL5.2 2.6.18-92.el5
+	- Add SLES10.2 2.6.16.60-0.21
+
+Version: 1.1.5-2457 ()
+
+build:
+	- Added a message telling the user to reboot in the VMware
+	  package.
+	- Added 2.4.21-47.0.1 (RHEL3 u8 errata 1)
+
+commctrl.c:
+	- ioctl scb passthrough needs to check the validity of the
+	  individual scatter gather count fields to the maximum the
+	  adapter supports. Doing so will have the side effect of
+	  preventing copy_from_user() from bugging out while populating
+	  the dma buffers.
+
+aacraid.h:
+	- Added Performance Modes and additional Feature Bits to
+	  Supplemental Info structure.
+
+aachba.c:
+	- Do not provide VPD data for VMware builds. Messes up the SAN
+	  signature.
+	- Add aacraid.wwn insmod parameter to control user preference.
+
+README:
+	- Comment out G series cards.
+
+Version: 1.1.5-2458 ()
+
+commctrl.c:
+	- if the driver is in shutdown, do not restart aacraid kernel
+	  thread (cleanup)
+
+aachba.c:
+	- SLES10 SP2 uses wwn=1, SLES10 SP1 uses wwn=2 as default
+
+Version: 1.1.5-2459 ()
+
+build:
+        - RHEL4.7 added: 2.6.9-78.el
+        - RHEL5.3 added: 2.6.18-92.el5
+
+linit.c+aachba.c:
+        - aac_cache=2 as default to avoid performance problems due to flushes 
+        (Novell Bugzilla #469922)
+        - disable nondasd support for AAC_QUIRK_SCSI_32 controllers to avoid hang
+        (RedHat Bugzilla #457552)
+
+all sources:
+        - changes for VMWare ESX4.0
+
+README:
+        - BLBU Voodoos added
+
+Version: 1.1.5-2460 ()
+
+2009-02-24	Achim_Leubner@adaptec.com
+
+linit.c:
+        - aac_eh_device_reset() and aac_eh_bus_reset() now return SUCCESS
+          to avoid "vmkfstools -L lunreset ..." and "vmkfstools -L busreset ..."
+          failures in the test suite of VMware
+
+all sources:
+        - scsi-misc-2.6 changes, patch against 2.6.29-rc7
+
+Version: 1.1.5-2461 ()
+
+2009-03-31	Achim_Leubner@adaptec.com
+
+commsup.c:
+        - AIF handling: If there is a JBOD drive added to the system, identify the 
+          old one with scsi_device_lookup() and remove it to enable a 
+          fresh scsi_add_device(); otherwise the new JBOD is not available
+          until reboot
+
+Version: 1.1.5-2463 ()
+
+2009-04-14	Achim_Leubner@adaptec.com
+
+aachba.c:
+	- expose_physicals: Phys. drives not available for expose_physicals>0 with new
+	  JBOD firmware - function aac_expose_phy_device() added to reset the appropriate
+	  bit in the first byte of inquiry data 	
+
+Version: 1.1.5-2464 ()
+
+2009-05-18	Mahesh_Rajashekhara@adaptec.com
+
+aachba.c:
+commctrl.c:
+comminit.c
+commsup.c
+dpcsup.c
+linit.c
+aacraid.h
+
+	- Added support for building the driver against Kernel - 2.6.25
+
+Version: 1.1.5-2466 ()
+
+2009-06-24	Mahesh_Rajashekhara@adaptec.com
+
+aachba.c:
+commctrl.c:
+csmi.c
+fwdebug.c
+linit.c
+
+	- Added support for building the driver against Kernel - 2.6.29 & 2.6.30
+
+Version: 1.1.5-2467 ()
+
+2009-07-10	Mahesh_Rajashekhara@adaptec.com
+
+aachba.c:
+commctrl.c:
+csmi.c
+fwdebug.c
+linit.c
+
+	- Added support for building the driver against Kernel - 2.6.26, 2.6.27 & 2.6.28
+
+Version: 1.1.5-2468 ()
+
+2009-07-22	Mahesh_Rajashekhara@adaptec.com
+
+linit.c
+
+	- "DDTS #11875: vmware 4.0 : Shows some junk value in serial number field"
+	  aac_show_serial_number - Added the fix to copy serial number into the buffer
+
+Version: 1.1.5-24800 ()
+
+2009-08-20	Mahesh_Rajashekhara@adaptec.com
+
+aachba.c
+
+	- Added support for handling ATA pass thru commands
+	  When the CC bit is SET by the host in ATA pass thru CDB, driver is supposed to return DID_OK	 
+	  When the CC bit is RESET by the host, driver should return DID_ERROR
+	 
+Version: 1.1.5-24900 ()
+
+2009-14-10	Mahesh_Rajashekhara@adaptec.com
+
+aachba.c
+
+	- VMWARE ESX: Added support for creating RVOLUME 
+
+Version: 1.1.5-25000 ()
+
+2009-11-05	Achim_Leubner@adaptec.com
+
+commctrl.c
+	- Change to avoid XferState != 0 kernel message after a possible sync. cmd timeout after 180s
+
+commsup.c
+	- schedule() call added for ESX35 to avoid deadlock because otherwise bottom half handler does
+	  not run and up() call never occurs
+	- wait=-1 setting removed for ESX40 because we can block under that OS
+
+commsup.c+dpcsup.c
+	- handling after a possible sync. cmd timeout after 180s changed to avoid PSOD due to wrong
+	  event_wait semaphore status
+
+Version: 1.1.5-25100 ()
+
+2009-11-12	Mahesh_Rajashekhara@adaptec.com
+
+aachba.c
+
+	- ADPml11898 SUNMR Spitfire issue
+ 	  Firmware  layer exposes lesser container capacity than the actual one.	
+	  It exposes [Actaul size - Spitfire space(10MB)] to the OS, IO's to the 10MB should be prohibhited from the Linux driver.
+	  Sensekey sets to HARDWARE_ERROR and sending the notification to the MID layer.
+	  Added "expose_hidden_space" flag, by default the fix will be executed. 
+	  Only if the user sets "expose_hidden_space=1", user can access beyond the Array reported size(Spitfire region).	 
+
+commsup.c
+	
+	- ADPml12131 Cannot see 2 luns with a prometheus card on a J4400
+	  When the Enclosure cable is Hot removed/inserted,driver doesn't inform SCSI mid layer about the device Online/Offline status 
+	  leaving "stale" entries. Now with this fix in the driver, it informs the appropriate device Online/Offline status to the 
+	  SCSI mid layer with the help of AIF notification from FW.
+
+Version: 1.1.5-25200 ()
+
+2009-11-17	Mahesh_Rajashekhara@adaptec.com
+
+aachba.c
+
+	- ADPml11898 SUNMR Spitfire issue
+	  Removed extra condition for this fix in aac_read/aac_write function. 
+	  
+Version: 1.1.5-25300 ()
+
+2009-11-30	Achim_Leubner@adaptec.com
+
+commctrl.c
+	- small fix to return correct status if sync. cmd timeout after 180s
+
+commsup.c
+	- schedule() call replaced by direct interrupt handler call due to recommendations by the VMware team
+	- wait=-1 not set for ESX40
+
+Version: 1.1.5-25400 ()
+
+2009-12-04	Mahesh_Rajashekhara@adaptec.com
+
+build:
+        - SLES10 SP3 added: 2.6.16.60-0.54.5
+
+Version: 1.1.5-25500 ()
+
+2009-12-08	Achim_Leubner@adaptec.com
+
+aacraid.h:
+        - "#if (defined(SCSI_HAS_DUMP))" removed for the "aac_adapter_intr()" definition 
+
+build:
+        - RHEL4.8 added: 2.6.9-81.el
+
+Version: 1.1.5-25600 ()
+
+2009-12-16	Mahesh_Rajashekhara@adaptec.com
+
+build:
+        - RHEL5.4 added: 2.6.18-164.el5
+
+Version: 1.1.5-25700 ()
+
+2010-01-08	Mahesh_Rajashekhara@adaptec.com
+
+aacraid.h:
+        - Based on the notification from FW, the driver calls "scsi_remove_device" for the deleted array.
+	  This call not only informs the scsi device status to the SCSI mid layer 
+	  and also it will remove corresponding scsi device entries from the Linux sysfs.
+	  Enabled "AAC_DEBUG_INSTRUMENT_AIF_DELETE" flag  in the Header file, with this flag the driver uses "scsi_remove_device"	
+
+Version: 1.1.5-25800 ()
+
+2010-01-14	Achim_Leubner@adaptec.com
+
+aachba.c:
+        - ESX40: Set aac_wwn=0 to avoid serious driver update problem (cannot mount root - vsd_mount failure)
+aacraid.h+commctrl.c+comminit.c+commsup.c+dpcsup.c:
+	- ESX40: Use cmdready wait queue instead of semaphore to wait for competion in aac_command_thread()
+	- ESX40: Use kthread_stop instead of thread_die flag during shutdown to kill aac_command_thread(), older driver
+	  had a deadlock here
+
+Version: 1.1.5-25900 ()
+
+2010-01-20	Mahesh_Rajashekhara@adaptec.com
+
+build:
+	- RHEL4.8 added: 2.6.9-89.el
+
+aacraid.src.spec:
+	- Added standalone XEN kernel support
+
+Version: 1.1.5-26000 ()
+
+2010-02-02	Mahesh_Rajashekhara@adaptec.com
+
+linit.c:
+	-  "cat /proc/scsi/aacraid/<Node #>" displays invalid argument
+	   The return value in "aac_procinfo" was incorrect and changed to return '0'
+
+Version: 1.1.5-26100 ()
+
+2010-02-16	Achim_Leubner@adaptec.com
+
+build:
+	- Added support to build ESX 4.0 driver ISO image
+
+Version: 1.1.5-26200 ()
+
+2010-02-24	Mahesh_Rajashekhara@adaptec.com
+
+build:
+	- ESX4: Driver ISO image file is renamed to ESX4 product
+
+Version: 1.1.5-26300 ()
+
+2010-02-26	Mahesh_Rajashekhara@adaptec.com
+
+linit.c:
+aachba.c:
+	- Fixed build issues for SLES11
+
+
+Version: 1.1.6-26400 ()
+
+2010-04-21	Achim_Leubner@adaptec.com
+
+linit.c + frey.c + aacraid.h + Makefile + VMware-4.0.sc + VMware.inc:
+        - Cardinal Frey controller support added
+
+Version: 1.1.6-26500 ()
+
+2010-07-28	Mahesh_Rajashekhara@adaptec.com
+
+aacraid.h + compat.h + linit.c + build:
+        - ESXi4.0 - Added fix to create device nodes(/dev/aacX)
+	- ESXi4.0 - Added build support to produce seperate driver binary package
+
+linit.c + fwdebug.c:
+	- Added build support for 2.6.34 and 2.4.37 kernels
+
+build:
+	- RHEL5.5 added: 2.6.18-194.el5
+
+Version: 1.1.6-26600 ()
+
+2010-08-11	Mahesh_Rajashekhara@adaptec.com
+
+build:
+	- SLES11 added: 2.6.27.19-5
+
+Version: 1.1.6-26700 ()
+
+2010-08-24	Mahesh_Rajashekhara@adaptec.com
+
+build:
+	- Fedora Core 11 added: 2.6.29.4-167.fc11
+	- Fedora Core 12 added: 2.6.31.5-127.fc12
+
+Version: 1.1.6-26800 ()
+
+2010-08-30	Mahesh_Rajashekhara@adaptec.com
+
+build:
+	- RHEL6 Beta2 added: 2.6.32-37.el6
+	- RHEL6 Snap8 added: 2.6.32-52.el6
+
+Version: 1.1.7-26900 ()
+
+2010-09-04	Mahesh_Rajashekhara@adaptec.com
+
+build:
+	- SLES11 SP1 added: 2.6.32.12-0.7
+
+Version: 1.1.7-27000 ()
+
+2010-09-06	Achim_Leubner@pmc-sierra.com
+
+frey.c: 
+	- Removed because Marvell Frey support removed
+src.c: 
+	- Added to support PMC SRC controller family (Kittyhawk, Tupelo)
+
+Version: 1.1.7-27100 ()
+
+2010-09-17	Mahesh_Rajashekhara@adaptec.com
+
+build:
+	- SLES11 SP1: Added DUD pre and post installation scripts
+	- SLES11 SP1: Updated README for SLES11 SP1 DUD installation
+
+Version: 1.1.7-27200 ()
+
+2010-09-23	Achim_Leubner@pmc-sierra.com
+
+VMware-3.5.xml + VMware-4.0.xml:
+	- Kittyhawk/Tupelo device IDs added for VMware
+
+rx.c + sa.c + src.c + fwdebug.c + aacraid.h: 
+	- UART trace output reworked because debug buffer is on BAR1 for PMC SRC
+
+Version: 1.1.7-27400 ()
+
+2010-10-19	Mahesh_Rajashekhara@adaptec.com
+
+VMware-4.0.xml:
+	- ESXi 4: Fixed driver load issue
+
+Version: 1.1.7-27500 ()
+
+2010-10-21	Achim_Leubner@pmc-sierra.com
+
+commsup.c:
+	- Deadlock patch (PR 414597) also added for ESX4
+src.c: 
+	- Wait 5 sec. after doorbell initiated FW reset to avoid wrong FW status read
+
+Version: 1.1.7-27600 ()
+
+2010-11-01	Achim_Leubner@pmc-sierra.com
+
+src.c: 
+	- Prep #178897: Avoid wrong doorbell bit clear in the interrupt routine
+	- Prep #178892: Adjust RRQ index in the interrupt routine
+
+Version: 1.1.7-27700 ()
+
+2010-11-18	Achim_Leubner@pmc-sierra.com
+
+src.c: 
+	- Prep #178892: Adjust RRQ index in the interrupt routine - BUG FIXED FROM 27600 BUILD
+
+Version: 1.1.7-27800 ()
+
+2010-11-30	Mahesh_Rajashekhara@adaptec.com
+
+aachba.c: 
+	- Prep #181085: Fixed write error and read-only filesystem issue
+
+Version: 1.1.7-27900 ()
+
+2010-12-07	Mahesh_Rajashekhara@pmc-sierra.com
+
+build:
+	- RHEL6 GA added: 2.6.32-71.el6
+
+Version: 1.1.7-28000 ()
+
+2011-02-16	Mahesh_Rajashekhara@pmc-sierra.com
+
+linit.c:
+	- Prep #192790: Fixed VMware certification SAS_CheckDriver test issue
+
+Version: 1.1.7-28100 ()
+
+2011-04-05	Mahesh_Rajashekhara@pmc-sierra.com
+
+linit.c:
+aachba.c:
+VMware-5.0.mak:
+VMware-5.0.sc:
+VMware-5.0.xml:
+	- Added support for ESXi 5.0 OS
+
+build:
+	- Fedora Core 13 added: 2.6.33.3-85.fc13
+	- Fedora Core 14 added:	2.6.35.6-45.fc14
+	- DKMS: Added Series 6 PCI id's into the 'pcitable' file and latest DKMS tool binary RPM v2.1.1.2
+
+Version: 1.1.7-28200 ()
+
+2011-05-24	Mahesh_Rajashekhara@pmc-sierra.com
+
+linit.c:
+commctrl.c:
+commsup.c:
+	- Fixed Ubuntu 11.04 build issues
+	- Fixed VMware 5.0 SAS_CoreDump test failure issue
+
+build:
+	- Updated driver README
+
+Version: 1.1.7-28300 ()
+
+2011-07-01	Mahesh_Rajashekhara@pmc-sierra.com
+
+linit.c:
+	- Prep #209412: Fixed bug in ioctl interface
+
+Version: 1.1.7-28400 ()
+
+2011-08-22	Mahesh_Rajashekhara@pmc-sierra.com
+
+aachba.c:
+aacraid.h:
+commctrl.c:
+comminit.c:
+commsup.c:
+dpcsup.c:
+VMware-5.0.mak:
+	- Included HCL ServeRAID team submitted upstream driver patch(Patch: [SCSI] aacraid: fix File System going into read-only mode)
+	  http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commitdiff;h=cacb6dc3d7fea751879a225c15e48228415e6359
+	- Added RDM(RAW DEVICE MAPPING) support for VMware ESX/ESXi 4.1 and ESXi5.0
+	  For RDM support, set "aac_wwn = 1" RAID controller response to inquiry VPD page 0x80 to return a unique serial number
+	- Added new DDK (#406165) Makefile for VMware ESXi5.0
+	- Changed sync. timeout from 30s to 300s for rx and src
+
+Version: 1.1.7-28500 ()
+
+2011-09-09	Mahesh_Rajashekhara@pmc-sierra.com
+
+aacraid.h:
+build:
+	- Fixed Prep #216490
+	- RHEL5.6 added: 2.6.18-238.el5 
+
+Version: 1.1.7-28600 ()
+
+2011-10-10	Mahesh_Rajashekhara@pmc-sierra.com
+
+linit.c:
+commsup.c:
+	- Fixed Prep #211135: Changed 'AIF_SNIFF_TIMEOUT' from 30 to 60 seconds because this timeout is too short for a config with a lot of drives. 
+	  Included block request timeout 45 seconds for the kernel versions >= 2.6.27 version 
+	  Initialized 'fibptr->flags' to 0 to avoid kernel derefrencing pointer issue
+	  Initialized 'aac->fibs[]' to 0 completely after allocation
+
+Version: 1.1.7-28700 ()
+
+2011-11-08	Mahesh_Rajashekhara@pmc-sierra.com
+
+build:
+	- A warning message to be printed during the DKMS build that indicates to the user to adjust settings in conf file for DKMS auto_install support
+
+Version: 1.1.7-28800 ()
+
+2011-12-06	Achim_Leubner@pmc-sierra.com
+
+aachba.c:
+linit.c:
+comminit.c:
+commsup.c:
+src.c:
+aacraid.h:
+	- Series 7 (Denali) support added
+	- Sync. mode (for testing) added
+	- Sync. mode switched on automatically if async. mode not supported (for future products - Series 7 with new async. interface, Series 8/9) 
+
+build:
+	- RHEL 6.2 RC added: 2.6.32-220.el6
+	- RHEL 6.1 added: 2.6.32-131.0.15.el6
+	- SLES 10 SP4 added: 2.6.16.60-0.85.1
+
+Version: 1.1.7-28900 ()
+
+2011-12-15	Achim_Leubner@pmc-sierra.com
+
+commsup.c:
+src.c:
+aacraid.h:
+linit.c:
+	- Sync. mode changes to avoid tool errors (management fib handling changes)
+
+Version: 1.2.0-29000 ()
+
+2011-01-18	Mahesh_Rajashekhara@pmc-sierra.com
+
+VMware-4.0.xml:
+VMware-5.0.xml:
+	- Added PCI device id's for Huawei80T, Series 7, 8 and 9 controllers
+
+Version: 1.2.1-29100 ()
+
+2012-03-12	Achim_Leubner@pmc-sierra.com
+
+aacraid.h:
+aachba.c:
+comminit.c:
+commsup.c:
+dpcsup.c:
+linit.c:
+src.c:
+	- Async. (performance) mode added for Series 7 with (native) S/G list, new FIB header, new Raw IO command (RawIo2)
+
+Version: 1.2.1-29500 ()
+
+2012-04-12	Achim_Leubner@pmc-sierra.com
+
+aachba.c:
+comminit.c:
+commctrl.c:
+	- Fast JBOD mode added
+
+2012-04-17	Mahesh_Rajashekhara@pmc-sierra.com
+
+aachba.c:
+	- Added a fix for 'BUG: scheduling while atomic' issue
+
+2012-04-30	Achim_Leubner@pmc-sierra.com
+
+aachba.c:
+dpcsup.c:
+aacraid.h:
+	- Bugfix Fast JBOD mode
+
+2012-05-10      Mahesh_Rajashekhara@pmc-sierra.com
+
+aachba.c:
+commsup.c:
+linit.c:
+Makefile:
+build:
+        - Fedora 15 added: 2.6.38.6-26.rc1.fc15
+        - Fedora 16 added: 3.1.0-7.fc16
+
+Version: 1.2.1-29600 ()
+
+2012-05-25	Mahesh_Rajashekhara@pmc-sierra.com
+
+build:
+        - RHEL 5.8 added: 2.6.18-308.el5
+        - SLES 11 SP2 added: 3.0.13-0.27
+        - Updated README
+
+Version: 1.2.1-29700 ()
+
+2012-06-21	Mahesh_Rajashekhara@pmc-sierra.com
+
+aachba.c:
+	- When we have an I/O that adjoins the previous request, we change the queue depth by calling 'scsi_adjust_queue_depth' API. 
+	  It appears that latest versions of kernel doesn`t support changing the queue depth and backing up of sequential I/O`s at
+	  the SCSI merge layer on a faster systems or controllers, the *lockdep* error caused due to clash between 'scsi_adjust_queue_depth' and
+	  'scsi_dispatch_cmd' routines at the SCSI upper layers.
+
+src.c:
+	- Workaround: To keep OS happy and to avoid disabling IRQ line issue, when the driver is in Async mode and if driver gets an
+	  extra sync. command completion response from the firmware, fix clear`s the ISR interrupt bits and return IRQ_HANDLED from 
+	  the interrupt handler fixes the "Disabling IRQ #" issue.
+
+Version: 1.2.1-29800 ()
+
+2012-07-03	Mahesh_Rajashekhara@pmc-sierra.com
+
+commsup.c:
+	- `udelay` in aac_fib_send to wait for ShutDown command complete that block the other CPUs too long during shutdown if array is rebuilding.
+	  Changed it to use `msleep` instead of `udelay`. 
+
+Version: 1.2.1-29900 ()
+
+2012-07-26	Mahesh_Rajashekhara@pmc-sierra.com
+
+commsup.c:
+aacraid.h:
+	- Added new AIF raw device remove support
+
+VMware-5.1.mak:
+VMware-5.1.sc:
+VMware-5.1.xml:
+	- Added support for VMware 5.1 OS
+
+Version: 1.2.1-30000 ()
+
+2012-12-19	Mahesh.Rajashekhara@pmcs.com
+		Vinay.Goli@pmcs.com
+
+aachba.c:
+	- SCSI dma mapping failure case handling
+	  http://git.kernel.org/?p=linux/kernel/git/torvalds/linux-2.6.git;a=commit;h=0b4334473d48aa18e8448f9f718f1dcd0398c550
+
+aacraid.h:
+comminit.c:
+	- 1024 command support related changes
+
+build:
+fc-post-install.sh:
+install.sh:
+	- New OSes support related changes for 2013.1 program
+
+Makefile:
+	- Instead of modifying OS GLOBAL config settings, creating driver specific conf file.
+
+Version: 1.2.1-30100 ()
+
+2013-01-16	Mahesh.Rajashekhara@pmcs.com
+		Vinay.Goli@pmcs.com
+
+build:
+	- RHEL 5.9 added: 2.6.18-348.el5
+
+aacraid.h:
+comminit.c:
+	- 1024 command support changes for S7 and above hardware only.
+
+Version: 1.2.1-30200 ()
+
+2013-02-11	Mahesh.Rajashekhara@pmcs.com
+		Vinay.Goli@pmcs.com
+
+build:
+install.sh:
+fc-post-install.sh:
+	- Fedora 18 added: 3.6.10-4.fc18
+
+aacraid.h:
+comminit.c:
+src.c:
+	- Added Dual flash fw support
+
+Version: 1.2.1-30300 ()
+
+2013-05-13	Mahesh.Rajashekhara@pmcs.com
+
+aachba.c:
+commsup.c:
+aacraid.h:
+	- Fixes for Prep #309671 and Prep #309674
+
+2013-05-13	Gilbert.Wu@pmcs.com
+
+commctrl.c:
+	- Fix for Prep #304874
+
+Version: 1.2.1-40000 ()
+
+2013-04-04	Achim.Leubner@pmcs.com
+		Mahesh.Rajashekhara@pmcs.com
+
+aacraid.h:
+linit.c:
+aachba.c:
+comminit.c:
+commsup.c:
+src.c:
+	- Added 4K sector support changes
+	- Added MSI-X support changes
+
+Version: 1.2.1-40100 ()
+
+2013-08-12	Mahesh.Rajashekhara@pmcs.com
+
+aacraid.h:
+comminit.c:
+commsup.c:
+linit.c:
+src.c:
+	- Added MSI-X IOP RESET handling changes
+	- Added fix for hang during driver re-load
+	- Added support for the kernel versions >= 3.8
+	- New OSes support packages:
+	  RHEL 6.4 added
+	  SLES 11 SP3 added
+	  VMware 5.5 added
+	  CentOS 6.2 added
+	- Fixed Prep #319611 and Prep #319516
+	- Suppress two GCC warnings
+
+Version: 1.2.1-40200 ()
+
+2013-10-09	Mahesh.Rajashekhara@pmcs.com
+
+comminit.c:
+aachba.c:
+	- Fixed Prep #317771: DKMS driver did not install or build for the updated kernel 3.9.6-200.fc18.x86_64 in Fedora 18.x86_64
+	- Fixed Prep #323488: Size of AUTOLD1 exposed in ARCCONF is different from that in OS
+	- Changed QD = 512 and Maximum FIB size = 4096 for performance
+
+Version: 1.2.1-40300 ()
+
+2013-10-24	Mahesh.Rajashekhara@pmcs.com
+
+aacraid.h:
+dpcsup.c:
+linit.c:
+src.c
+	- Fixes for Prep's below:
+	  Prep #325216: VMware ESXi 5.1 Cert - `ErrorHandling::SAS_CoreDumpTest` failed.
+	  Prep #324456: SLES 11 SP3(x64) : System hang due to CIM Server failed while running overnight IO.
+	  Prep #324481: Kernel panic found while array roaming from 8885E to 81605ZQ
+
+Version: 1.2.1-40400 ()
+
+2013-12-02	Mahesh.Rajashekhara@pmcs.com
+
+build:
+	- RHEL 5.10 added
+
+Version: 1.2.1-40500 ()
+
+2014-02-14	Mahesh.Rajashekhara@pmcs.com
+
+VMware-4.0.xml:
+VMware-5.0.xml:
+VMware-5.1.xml:
+VMware-5.5.xml:
+rx.c:
+	- Updated latest PCI device IDs
+	- kdump fix: http://marc.info/?l=linux-scsi&m=138960673329856&w=2
+
+Version: 1.2.1-40600 ()
+
+2014-03-31	Mahesh.Rajashekhara@pmcs.com
+
+aacraid.h:
+aachba.c:
+	- Fix for Prep#338719: Multiple issues in creating more than 64 Simple volume in SV 240 mode
+
+Version: 1.2.1-40700 ()
+
+2014-05-05	Achim.Leubner@pmcs.com
+
+aacraid.h:
+comminit.c:
+src.c:
+	- Fix for Prep #341911: doorbell reset value now available during initialization for driver
+
+2014-05-05	Mahesh.Rajashekhara@pmcs.com
+
+aacraid.h:
+comminit.c:
+linit.c:
+	- Fix for Prep #337965:  During the shutdown, if driver gets commands from the application layer, driver sends error code to the upper layers.
+
+Version: 1.2.1-50000 ()
+
+2014-07-02	Mahesh.Rajashekhara@pmcs.com
+
+aachba.c:
+aacraid.h:
+commsup.c:
+linit.c:
+
+	- Added support for Katmai boards
+	- Prep 350269: 2K/streamline continuation FIB support
+	- Prep 349878: Linux driver has to populate the right value in FIB header for CF_STATUS_HEADER
+
+Version: 1.2.1-50001 ()
+
+2014-07-23	Achim.Leubner@pmcs.com
+		Santosh.Akula@pmcs.com
+		Mahesh.Rajashekhara@pmcs.com
+
+aachba.c:
+aacraid.h:
+commctrl.c:
+commsup.c:
+linit.c:
+src.c:
+
+	- 352427 - Katmai: Force controller mode to SMART MODE
+	- 351878 - Katmai: Hot plug doesnt work in linux
+	- 351879 - Katmai: Add persistent mapping support
+	- 349443 - change AIF vector number
+	- 348570 - Error code changes
+	- 350053 - Transport reset implemented
+	 
+Version: 1.2.1-50002 ()
+
+2014-08-20	Achim.Leubner@pmcs.com
+		Mahesh.Rajashekhara@pmcs.com
+		Murthy.Bhat@pmcs.com
+		Santosh.Akula@pmcs.com
+
+aachba.c:
+aacraid.h:
+linit.c:
+VMware-4.0.xml:
+VMware-5.0.xml:
+VMware-5.1.xml:
+VMware-5.5.xml:
+build:
+install.sh:
+
+	- Prep 334262: Do not expose SEP devices on VMware ESXi
+	- Prep 352682: AATF Found: LD Name and UID not exposed to the OS
+	- Prep 354136: AATF Found: Controller model not displayed in `cat /proc/scsi/aacraid/` output
+	- RHEL 6.5 GA Kernel version: 2.6.32-431.el6
+	- Added Lenovo 8885E support
+
+Version: 1.2.1-50003 ()
+
+2014-08-26	Mahesh.Rajashekhara@pmcs.com
+		Achim.Leubner@pmcs.com
+
+aacraid_build:
+build:
+CHANGELOG:
+CheckInLog.txt:
+comminit.c:
+commsup.c:
+linit.c:
+aachba.c:
+commctrl.c:
+dpcsup.c:
+
+	- RHEL 7.0 Kernel version: 3.10.0-123.el7 added
+	- Fixed RHEL 5.x Xen kernel issue
+	- 354406 - AATF Found: Drive Firmware version not displayed for SATA drives in ARCConf output in HBA mode
+	- 355642 - Driver module load failed with ARC controller
+
+Version: 1.2.1-50004 ()
+
+2014-09-05	Mahesh.Rajashekhara@pmcs.com
+		Achim.Leubner@pmcs.com
+
+CheckInLog.txt:
+CHANGELOG:
+aachba.c:
+comminit.c:
+aacraid.h:
+build:
+
+	- Increase supported LUNs from 8 to 256
+	- Add 2K FIB support bit
+	- Add Ubuntu 14.04 driver support packages.
+
+Version: 1.2.1-50005 ()
+
+2014-10-07	Mahesh.Rajashekhara@pmcs.com
+
+CHANGELOG:
+CheckInLog.txt:
+aacraid_key.config:
+aacraid_key.priv:
+aacraid_key_pub.der:
+build/aacraid_kmod.spec:
+build/aacraid_build:
+build/aacraid_dd_skel.tar:
+aacraid.spec:
+build/aacraid_dd_skel/dd_sles10_32:
+build/aacraid_dd_skel/dd_sles10_64:
+
+	- Prep # 359111: Fixed SLES 10.x / 11.x driver binary package install/un-install issues.
+	- Prep # 357753: Add RHEL 7.0 GA kernel driver module signing support.
+
+Version: 1.2.1-50006 ()
+
+2014-11-18	Rajinikanth.pandurangan@pmcs.com
+
+aachba.c
+CHANGELOG
+CheckInLog.txt:
+	- Fix for PREP361037 - Add support for Inquiry vpd page 0x83 for logical wwn.
+	- Fix for "smartctl -i" failure in getting mode sense data.
+
+
+ToDo:
+	-
+
+2014-12-19	Gilbert.Wu@pmcs.com
+
+CHANGELOG:
+CheckInLog.txt:
+src.c
+
+1. Fix the IOP_RESET does not work on S8. Sending IOP_RESET command need to wait for only 10 sec instead of 5 minutes
+   in case of firmware does not response IOP_RESET command.
+2. Disable interrupt before setup interrupt routine to prevent spurious interrupt.
+
+Version: 1.2.1-50007 ()
+
+2014-12-19	Rajinikanth.pandurangan@pmcs.com
+
+aachba.c
+CHANGELOG
+CheckInLog.txt:
+	- Fix for PREP361037 - Add support for Inquiry vpd page 0x83 for logical wwn.
+	- Fix for "smartctl -i" failure in getting mode sense data.
+ToDo:
+	-
+	
+Version: 1.2.1-50007 ()
+
+2015-01-13	Rajinikanth.pandurangan@pmcs.com
+
+aachba.c
+comminit.c
+commsup.c
+dpcsup.c
+linit.c
+rx.c
+src.c
+aachba.h
+CheckInLog.txt:
+ - As part of the performance improvement, there are RHEL specific changes and some generic changes.
+    1. Specific for RHEL6.5/CentOS6.5 - For RHEL 6.X, now our driver exposes as lockless driver. This
+    means kernel will not lock before it calls our driver IO entry point.
+    2. Generic changes:
+       a. Now driver sets IRQ affinity hints.  This would help kernel to assign specific MSIx vector
+       to specific cpu core.
+       b. Couple of spin_lock has been removed in IO path.
+       c. If kernel > 2.6.37, by default kernel will not lock before it calls our IO entry.  Now our
+       driver doesn't lock itself before it submits each IO request. 
+ToDo:
+	- There is one more spinlock which can be removed by using atomic variables.
+	- Or rewrite IO path to make it compatible for NUMA.
+
+
+2015-1-16 - Murthy.bhat@pmcs.com
+
+CHANGELOG:
+CheckInLog.txt:
+aacraid_build:
+    - Added Ubuntu 14.10 13.10 and Debian 7.6 OS support
+    - Updated driver README
+
+ToDo:
+	-
+	
+2015-1-23 - Murthy.bhat@pmcs.com
+
+CHANGELOG
+CheckInLog.txt
+build/aacraid_dd_skel.tar
+build/aacraid_dd_skel/dd_fc
+build/aacraid_kmod_fc.spec
+build/kmodtool_aacraid_fc
+
+        - Added new driver SPEC/build scripts for building driver binaries for
+          Fedora, so that driver binaries can be built automatically on a native
+          Fedora virtual machines (automated build server).
+ToDo:
+	-
+
+2015-2-16 - Murthy.bhat@pmcs.com
+
+CHANGELOG
+CheckInLog.txt
+build/aacraid_dd_skel.tar
+build/aacraid_dd_skel/dkms
+build/aacraid_dkms.spec
+build/aacraid.src.spec
+
+        - Added new driver SPEC/build scripts for building DKMS driver binaries
+          and source rpm, so that driver binaries, source rpm can be built 
+          automatically on an automated build server.
+ToDo:
+	-
+
+2015-2-27 - Murthy.bhat@pmcs.com
+
+CHANGELOG
+CheckInLog.txt
+build/aacraid_dd_skel.tar
+build/README.txt
+build/aacraid_dd_skel/dd_fc/README.txt
+
+        - New master README, which explains changed methods in installing the OS on ARC 
+	  array and package name changes etc
+ToDo:
+	-
+2015-3-17 - rajinikanth.pandurangan@pmcs.com
+
+CHANGELOG
+CheckInLog.txt
+build/aacraid_build
+build/aacraid-kmod.spec
+build/README.txt
+
+	- Added automatic build support for RHEL7.1
+ToDo:
+	-
+	
+2015-3-19 - Murthy.bhat@pmcs.com
+
+CHANGELOG
+CheckInLog.txt
+build/aacraid_build
+build/aacraid_dd_skel.tar
+build/README.txt
+build/aacraid-kmod_fc20.spec
+build/aacraid_dd_skel/dd_fc/fc-post-install.sh
+
+    - Added Fedora 21 OS support
+    - Updated driver README
+
+ToDo:
+	-
+
+2015-3-27 - Murthy.bhat@pmcs.com
+
+build/aacraid_kmod.spec
+CHANGELOG
+CheckInLog.txt:
+	- Fix for PREP373778 - KMOD RPM installation not working
+
+ToDo:
+	-
+2015-4-16 - rajinikanth.pandurangan@pmcs.com
+
+linit.c
+CHANGELOG
+CheckInLog.txt:
+	- Fix for PREP #374209 (Title: The arcconf/maxView can not see the controller after release system from Suspend state(Ubuntu 14.04.1))
+
+ToDo:
+	-
+
+2015-4-17 - Murthy.bhat@pmcs.com
+
+CHANGELOG
+commsup.c
+aacraid.h
+CheckInLog.txt:
+	- Fix for Prep 371737 - Container UID to Serial Number to OS is all zeros.
+
+ToDo:
+	-
+
+2015-7-6 - Murthy.bhat@pmcs.com
+
+CHANGELOG
+CheckInLog.txt:
+build/aacraid_dd_skel.tar
+build/README.txt
+build/aacraid-kmod_ol.spec
+build/aacraid-kmod_oluek.spec
+build/aacraid_dd_skel/dd_oraclelinux
+	- Added Oracle Linux 6.6 and 7.1 support.
+
+ToDo:
+
+2015-07-09 - rajinikanth.pandurangan@pmcs.com
+CHANGELOG
+CheckInLog.txt
+aacraid.h
+commctrl.c
+	- Add new IOCTL to report PCI device/Vendor ID of our controller.
+
+ToDo:
+
+	
+2015-7-23 - Murthy.bhat@pmcs.com
+
+CHANGELOG
+CheckInLog.txt
+build/aacraid_build
+build/aacraid_dd_skel.tar
+build/README.txt
+
+    - Added Fedora 22 OS support
+    - Updated driver README
+
+ToDo:	
+
+2015-8-27 - Murthy.bhat@pmcs.com
+
+CHANGELOG
+CheckInLog.txt
+commsup.c:
+aachba.c:
+aacraid.h
+
+    - Change code to send BMIC 0x15 to SA FW to get queue depth info for 
+      physical devices, and set queue depth accordingly during device
+      discovery and hot plug
+
+ToDo:	
+
+
+2015-10-9 - Murthy.bhat@pmcs.com
+
+CHANGELOG:
+CheckInLog.txt:
+aacraid_build:
+    - Added Ubuntu 15.04 OS support
+    - Updated driver README
+
+ToDo:
+	-
+
+2017-1-3 - Raghavaaditya.renukunta@microsemi.com
+CHANGELOG:
+CheckInLog.txt
+aachba.c
+aacraid.h
+adbg.c
+comminit.c
+commsup.c
+dpcsup.c
+linit.c
+nark.c
+rx.c
+release.h
+	- Removed all APRE changes
+
+ToDo:
+	-
+
+2017-1-3 - raghavaaditya.renukunta@microsemi.com
+CHANGELOG
+.vimrc
+	- Added local vimrc file to handle kernel formatting
+	- should add set exrc and set secure in global vimrc
+
+ToDo:
+	-
+
+2017-1-3 - raghavaaditya.renukunta@microsemi.com
+CHANGELOG
+makefile
+	- Added options debug, release and clean to create driver modules
+	- Removed separate support for 3.x.x and 4.x.x kernels, replaced with
+	  single kernel else version
+	- Added comments to better understand the Makefile
+
+2017-1-6 - David.Carroll@microsemi.com
+CHANGELOG:
+CheckInLog.txt
+comminit.c
+	- Do not use GFP_DMA, use GFP_DMA32 where applicable
+
+ToDo:
+	-
+2017-1-27 - prasad.munirathnam@microsemi.com
+CHANGELOG:
+linint.c
+	- Queue depth for ARC Raw device is set based on the drive type, SATA qd=32 SAS qd=64
+	- setting queue_depth through echo 32 > sys/block/sda/device/queue_depth was allways 
+	  setting the queue_depth to 1,fixed to set the queue_depth based on user input.
+To Do:
+
+2017-1-31 - prasad.munirathnam@microsemi.com
+CHANGELOG:
+linint.c
+	- 4 K native drives is consider as ARC Raid device and queue depth was set to 256.
+	- For non native HBA devices on SA Firmware controller set the queue_depth based on the drive type
+	  SATA qd=32 & SAS qd=64.
+
+To Do:2017-2-9 - david.carroll@microsemi.com
+CHANGELOG:
+comminit.c
+
+	a.ROOT-CAUSE:
+	A previous patch for kdump hang caused problems with older controllers (ASR3405/3805) which do 
+	not support msi-X. This patch conditionalizes the previous patch to controllers which support 
+	MSI-x.
+
+	b.DETAILS OF FIX/IMPLEMENTATION:
+	Conditionalize the check for MSI-x to controllers which support it S6,7,8
+
+ToDo:
+
+2017-02-20 - mahesh.rajashekhara@microsemi.com
+CHANGELOG
+CheckInLog.txt
+aachba.c
+aacraid.h
+commctrl.c
+comminit.c
+commsup.c
+csmi.c
+linit.c
+rx.c
+
+	a.ROOT-CAUSE:
+	The driver uses pci_alloc_consistent() to allocate the FIBs in DMA space.
+	During the driver initialization, driver calls this kernel API to allocate the FIBs.
+	This pci_alloc_consistent () kernel API has the limitation on the amount of contiguous DMA-able memory allocations.
+	This issue is specific to ARM64 bit kernel architecture.
+
+	b.DETAILS OF FIX/IMPLEMENTATION:
+	pci_alloc_consistent() - Allocates memory of type GFP_ATOMIC.
+	Alternative to pci_alloc_consistent(): dma_alloc_coherent()
+	dma_alloc_coherent()- We have to specify what type of memory to allocate.
+	We should not use the high priority GFP_ATOMIC memory unless we need it and in most cases, it will be fine with GFP_KERNEL allocations.
+
+ToDo:
+
+2017-02-20 - mahesh.rajashekhara@microsemi.com
+CHANGELOG
+CheckInLog.txt
+aacraid_build
+aacraid_kmod_arm.spec
+kmodtool_aacraid_arm
+
+	a.ROOT-CAUSE:
+	Driver build for Cavium ARM64 custom kernels is not supported in the driver build script.
+
+	b.DETAILS OF FIX/IMPLEMENTATION:
+	Added ARM64 driver build support for Cavium custom kernel versions: 4.2.6.30.cavium+ / 4.2.6.31.cavium+
+
+To Do:
+
+2017-03-01 - david.carroll@microsemi.com
+//ESD_ARC/mainline/drivers/Linux/CHANGELOG
+//ESD_ARC/mainline/drivers/Linux/CheckInLog.txt
+//ESD_ARC/mainline/drivers/Linux/Makefile
+//ESD_ARC/mainline/drivers/Linux/aachba.c
+//ESD_ARC/mainline/drivers/Linux/aacraid.h
+//ESD_ARC/mainline/drivers/Linux/linit.c
+
+	ROOT-CAUSE:
+	Include a module option which will delay presentation of device for 7 seconds, to allow
+	customers to insure that their AHCI device gets to have /dev/sda
+
+	DETAILS OF FIX/IMPLEMENTATION:
+	Module option disc_delay which will allow a programmed delay (currently 7 seconds), and 
+	andable this option for uek branch drivers.
+
+
+To Do:
+
+2017-03-08 - raghavaaditya.renukunta@microsemi.com
+CHNAGELOG
+adbg.h
+linit.c
+	- Removed strings from aac_show_flags which displays the flag stings in
+	  multiple lines for aacraid. (used systool from sysfsutils)
+		i.e systool -c scsi_host host8 -vvv
+	- Replaced strings with a a bunch of macros that OR into a unique 64 bit
+	  number and which can parsed by tools/flag.py python program.
+
+To Do:
+
+2017-03-08 - david.carroll@microsemi.com
+	//ESD_ARC/mainline/drivers/Linux/aachba.c
+	//ESD_ARC/mainline/drivers/Linux/adbg.h
+	//ESD_ARC/mainline/drivers/Linux/commsup.c
+	//ESD_ARC/mainline/drivers/Linux/compat.h
+	//ESD_ARC/mainline/drivers/Linux/linit.c
+
+	ROOT-CAUSE:
+	When using RHEL6.4 with iommu=pt, DMAR errors would occur. This was due to changing the
+	DMA consistent map after consistent memory was allocated, which invalidated the IOMMU identity
+	mapping.
+
+	DETAILS OF FIX/IMPLEMENTATION:
+	Re-worked the DMA [consistent] mask setting so that we only need to set this once depending on the
+	controller card. All FIB allocation must be in either 31/32 memory, so do not attempt to set consistent
+	mapping above this.
+
+To Do:
+2017-03-07 - prasad.munirathnam@microsemi.com
+//ESD_ARC/mainline/drivers/Linux/build/aacraid_build
+//ESD_ARC/mainline/drivers/Linux/CHANGELOG.txt
+//ESD_ARC/mainline/drivers/Linux/CheckInLog.txt
+
+	ROOT-CAUSE:
+	RHEL 7.3 x64 PowerPC LE is released newly and currently we dont have driver build support for this new OS platform.
+
+	DETAILS OF FIX/IMPLEMENTATION:
+	Added the Driver Build Support RHEL 7.3 kernel version 3.10.0-514.el7.ppc64le. 
+	Fixed driver build for RHEL 7.2 Power PC driver to generate the .rpm & .iso files 
+	with the proper naming convention indicating the OS version for which it is built for.
+
+To DO:
+
+2017-03-09 - prasad.munirathnam@microsemi.com
+//ESD_ARC/mainline/drivers/Linux/build/aacraid_build
+//ESD_ARC/mainline/drivers/Linux/CHANGELOG.txt
+//ESD_ARC/mainline/drivers/Linux/CheckInLog.txt
+
+	ROOT-CAUSE:
+	Ubuntu 14.04.5 x86 Support is missing in driver IP release. Driver Build support is not added for the Ubuntu 14.04.5.
+
+	DETAILS OF FIX/IMPLEMENTATION:
+	Added the Driver Build Support for Ubuntu 14.04.5 with kernel version 4.4.0-31-generic.
+
+To Do:
+
+
+Fri Mar 17 2017 - raghavaaditya.renukunta@microsemi.co
+//ESD_ARC/mainline/drivers/Linux/Makefile
+//ESD_ARC/mainline/drivers/Linux/build/aacraid_build
+//ESD_ARC/mainline/drivers/Linux/build/aacraid_dd_skel/dkms/readme.txt
+ - //ESD_ARC/mainline/drivers/Linux/build/aacraid_dkms.spec
+ - //ESD_ARC/mainline/drivers/Linux/build/aacraid_dd_skel/dkms/redhat_driver_disk/modinfo
+ - //ESD_ARC/mainline/drivers/Linux/build/aacraid_dd_skel/dkms/redhat_driver_disk/modules.dep
+ - //ESD_ARC/mainline/drivers/Linux/build/aacraid_dd_skel/dkms/redhat_driver_disk/pcitable
+ - //ESD_ARC/mainline/drivers/Linux/build/aacraid_dd_skel/dkms/redhat_driver_disk/rhdd-6.1
+ - //ESD_ARC/mainline/drivers/Linux/build/aacraid_dd_skel/dkms/dkms-2.2.0.3-1.noarch.rpm
+ - //ESD_ARC/mainline/drivers/Linux/build/aacraid_dd_skel/dkms/dkms.conf
+ - //ESD_ARC/mainline/drivers/Linux/build/aacraid_dd_skel/dkms/GPL
+
+	Removed dkms support from the build system
+2017-03-15 - prasad.munirathnam@microsemi.com
+//ESD_ARC/mainline/drivers/Linux/build/aacraid_build
+//ESD_ARC/mainline/drivers/Linux/CHANGELOG.txt
+//ESD_ARC/mainline/drivers/Linux/CheckInLog.txt
+//ESD_ARC/mainline/drivers/Linux/build/dd_ubuntu/16.04.2/ppc64le/README.txt
+
+	ROOT-CAUSE:
+	Ubuntu 16.04.2 PPC64LE OS is newly released, Driver Build support is required.
+
+	DETAILS OF FIX/IMPLEMENTATION:
+	Added the Driver Build Support for Ubuntu 16.04.2 Power PC 64 LE with kernel version 4.4.0-62-generic.
+
+To Do:
+
+2017-03-15 - prasad.munirathnam@microsemi.com
+//ESD_ARC/mainline/drivers/Linux/CHANGELOG.txt
+//ESD_ARC/mainline/drivers/Linux/CheckInLog.txt
+//ESD_ARC/mainline/drivers/Linux/commsup.c
+
+	ROOT-CAUSE:
+	In SmartIOC Mixed Mode After creating RAID the drives are still shown in lsscsi output as /dev/sdx.
+	After Creating RAID in Smart IOC Mixed Mode the drives that are part of the RAID are not removed this 
+	is because sas_remove_device is not called.
+
+	DETAILS OF FIX/IMPLEMENTATION:
+	After creating the RAID in mixed mode drives expose flag is changed from the firmware. based on the expose flag
+	value a check is added to call the sas_remove_device.
+
+To Do:
+
+Wed Mar 29  2017 - RaghavaAditya.Renukunta@microsemi.com
+ARCA-4153
+CHANGELOG
+.vimrc
++patches
++patches/patch_changes.md
+	- Added folder that contains all patches that been sent from 41052 to
+		50952
+	- Added patches that have been sent for RHEL73 41066 and RHEL74 50952
+	- Added cahnge file to track what needs to be added back to mainline
+	- Added spell check for CHANGELOG in vimrc
+
+ToDo:
+	-
+2017-04-07 - david.carroll@microsemi.com
+ET-150
+CHANGELOG
+	//ESD_ARC/mainline/drivers/Linux/commsup.c
+
+	ROOT-CAUSE:
+	When adding sas transport functionality, we ordered presentation of containers after raw volumes. This
+	contradicts the way aacraid has always presented volumes before raid devices.
+
+	DETAILS OF FIX/IMPLEMENTATION:
+	Shuffled the code to add container before the scan for raw devices.
+
+To Do:
+
+2017-04-14 - david.carroll@microsemi.com
+ARCA-4320
+CHANGELOG
+	//ESD_ARC/mainline/drivers/Linux/linit.c
+
+	ROOT-CAUSE:
+	When the command thread is running, and processing discovery events, the OS will issue various commands while transport
+	is adding the devices into the tree. If we block the requests, this will cause the command thread to hang, waiting for the 
+	I/O to complete (inquiry, read capacity, ...). The follow-on to the shutdown, is calling __aac_shutdown(), which will attempt
+	to stop the command thread, which is waiting for the I/O to complete, which completes the deadlock.
+
+	This can happen without the switch, however the window is significantly smaller, and is also complicated by Thor, which doesn't send 
+	discrete events for each individual device change, but a bulk change, which is handled by report luns, which will reconcile the old 
+	configuration with the new configuration.
+
+
+
+	DETAILS OF FIX/IMPLEMENTATION:
+	Remove scsi_block_requests() in aac_shutdown()
+
+
+To Do:
+
+
+2017-04-19 - raghavaaditya.renukunta@microsemi.com
+//ESD_ARC/mainline/drivers/Linux/linit.c
+
+	Changed Exapnder to sas end device types will only effect HBA1000
+	Made changes to release sas devices
+	Enabled sas transport only in the _init and remove it in _exit
+
+	-
+
+2017-04-21 - raghavaaditya.renukunta@microsemi.com
+
++ //ESD_ARC/mainline/drivers/Linux/coverity.conf
++ //ESD_ARC/mainline/drivers/Linux/coverity.sh
++ //ESD_ARC/mainline/drivers/Linux/docs/coverity.md
+
+	Added information about coverity
+	Added script to run coverity on the current code
+
+2017-05-2 - raghavaaditya.renukunta@microsemi.com
+
+//ESD_ARC/mainline/drivers/Linux/linit.c
+//ESD_ARC/mainline/drivers/Linux/commctrl.c
+//ESD_ARC/mainline/drivers/Linux/comminit.c
+//ESD_ARC/mainline/drivers/Linux/commsup.c
+JIRA=ARCA-4454
+
+	Added back changes from kernel.org comments up to patchset 41052
+	Added new mutex for serialize ioctl
+	Added helper function to allocation msix
+	Added macros to setup character device manipulation
+
+2017-05-23 - raghavaaditya.renukunta@microsemi.com
+
+//ESD_ARC/mainline/drivers/Linux/aacraid.h
+//ESD_ARC/mainline/drivers/Linux/commsup.c
+//ESD_ARC/mainline/drivers/Linux/linit.c
+//ESD_ARC/mainline/drivers/Linux/src.c
+
+JIRA=ARCA-4585
+
+	Removed the round robin style vector selection and replaced with fib
+	centric vectors
+	Added code that only uses vector tbl if is set
+
+2017-06-21 - raghavaaditya.renukunta@microsemi.com
+
+//ESD_ARC/mainline/drivers/Linux/aacraid.h
+//ESD_ARC/mainline/drivers/Linux/comminit.c
+//ESD_ARC/mainline/drivers/Linux/commsup.c
+//ESD_ARC/mainline/drivers/Linux/linit.c
+//ESD_ARC/mainline/drivers/Linux/src.c
+
+JIRA=ARCA-4682
+
+	Backport new pci irq api
+	renamed msi_enabled to msix_enable
+	rewrote define int to make it cleaner
+	rewrote request_irq to make it cleaner
+
+2017-06-27 - david.carroll@microsemi.com
+No JIRA
+CHANGELOG
+	//ESD_ARC/mainline/drivers/Linux/CHANGELOG
+	//ESD_ARC/mainline/drivers/Linux/CheckInLog.txt
+	//ESD_ARC/mainline/drivers/Linux/aacraid.h
+	//ESD_ARC/mainline/drivers/Linux/commsup.c
+	//ESD_ARC/mainline/drivers/Linux/compat.h
+
+	a.ROOT-CAUSE:
+	Detect PCI EEH errors before doing check_health
+
+	b.DETAILS OF FIX/IMPLEMENTATION:
+	wrap the ADAPTER_CHECK_HEALTH macro with checks for PCI errors
+
+To Do:
+2017-06-28 - david.carroll@microsemi.com
+ARCA-3954
+CHANGELOG
+	//ESD_ARC/mainline/drivers/Linux/linit.c
+
+	a.ROOT-CAUSE:
+	Some I/O is dropped is falling through the eh_reset handler due to setting time
+	out flag. Use a new flag to insure the I/O is properly handled
+
+	b.DETAILS OF FIX/IMPLEMENTATION:
+	Use flag EH_RESET instead
+
+
+To Do:
+
+2017-06-29 - david.carroll@microsemi.com
+ARCA-3954
+CHANGELOG
+	//ESD_ARC/mainline/drivers/Linux/commsup.c
+
+	a.ROOT-CAUSE:
+	The fiblink field of the fib is not initialized, and we observed WARN() messages with UEK R4u4,
+	which caused the sync mode inbox driver to end up crashing 
+
+	b.DETAILS OF FIX/IMPLEMENTATION:
+	Initialize the fiblink list head in aac_fib_setup(), and two other places after a fib was copied.
+
+
+To Do:
+
+2017-07-06 - raghavaaditya.renukunta@microsemi.com
+ARCA-4972
+	//ESD_ARC/mainline/drivers/Linux/commsup.c
+
+	a.ROOT-CAUSE:
+	The send_sig function prototype has moved from sched.h to sched/signal.h
+
+	b.DETAILS OF FIX/IMPLEMENTATION:
+	if kernel is greater than 4.10 include sched/signal.h
+
+2017-07-06 - raghavaaditya.renukunta@microsemi.com
+JIRA=ARCA-4598
+	//ESD_ARC/mainline/drivers/Linux/CHANGELOG
+	//ESD_ARC/mainline/drivers/Linux/CheckInLog.txt
+	//ESD_ARC/mainline/drivers/Linux/commctrl.c
+	//ESD_ARC/mainline/drivers/Linux/aacraid.h
+	//ESD_ARC/mainline/drivers/Linux/adbg.h
+	//ESD_ARC/mainline/drivers/Linux/adbg.c
+
+
+	a.ROOT-CAUSE:
+	Code is repeated for printing srb and fib info
+
+	b.DETAILS OF FIX/IMPLEMENTATION:
+	created a single function to print information
+
+017-07-06 - david.carroll@microsemi.com
+ARCA-4507
+CHANGELOG
+	//ESD_ARC/mainline/drivers/Linux/linit.c
+
+	a.ROOT-CAUSE:
+	When the controller is hung, do not return success on abort command
+
+	b.DETAILS OF FIX/IMPLEMENTATION:
+	At the beginning of eh_abort, so adapter_check_health, and return fail if not online
+
+
+To Do:
+
+
+Jul 17 2017 - RaghavaAditya.Renukunta@microsemi.com
+ARCA-4941
+CHANGELOG
+	- Added adbg_sas for sas onlt debugging
+	- Added debug prints for each device scanned in SAS mode
+	- Added smp handshake to unmask smp target
+	- Assigned target phy id at scan time itself.
+
+Jul 25  2017 - raghavaaditya.renukunta@microsemi.com
+Makefile - Added cscope build support
+
+Mon_Jul_31_2017 - raghavaaditya.renukunta@microsemi.com
+ARCA-5159
+CHANGELOG
+	- Released HINT before releasing irq
+
+ARCA-5118
+CHANGELOG
+	- create seperate fib generation function for hard reset & lun reset.
+
+Mon_Aug_14_2017 - prasad.munirathnam@microsemi.com
+ARCA-5384
+CHANGELOG
+	- removed the #ifdef for kernel version 2.6.18 & lower in eh_reset function
+
+Fri_Aug_18_2017 - prasad.munirathnam@microsemi.com
+ARCA-5119
+CHANGELOG
+	- Split off device, target, and bus reset functionality into individual functions.
+	- Split off the host reset parts of aac_eh_reset() into a separate host reset function.
+
+Fri_Aug_25_2017 - prasad.munirathnam@microsemi.com
+ARCA-5188
+CHANGELOG
+	- During reset send fib, send TMF request independent of the scsi command by using the TMF status in map_info->reset_state
+
+Fri Sept 19 2017 - prasad.munirathnam@microsemi.com
+ARCA-5695
+CHANGELOG
+	- Fix possible indexing array out of bound for &aac->hba_map[bus][cid],where bus and cid boundary check happens later.
+	- aac_convert_sgraw2() kmalloc memory and return -1 on error, which should be -ENOMEM
+
+Fri Sept 26 2017 - prasad.munirathnam@microsemi.com
+ARCA-4854
+CHANGELOG
+	- Remove all the checks for NULL returns from aac_fib_alloc_tag
+	- Fix incorrectly defined MACRO name  Sa_MINIPORT_REVISION
+
+Mon Oct 16 2017 - prasad.munirathnam@microsemi.com
+ARCA-5812
+CHANGELOG
+	- Use AAC_STAT_GOOD instead of DID_OK << 16 | COMMAND_COMPLETE << 8 | SAM_STAT_GOOD)
+	- replace kzalloc with kcalloc
+
+Thu Oct 19 2017 - david.carroll@microsemi.com
+ARCA-5519
+CHANGELOG
+	- Increase timeout for Thor to 180s
+
+Mon Oct 23 2017 - prasad.munirathnam@microsemi.com
+ARCA-4856
+CHANGELOG
+	- BackPort Inbox 50792 changes to mainline OOB
+	- Reworked aac_command_thread into aac_process_events
+
+Mon Oct 27 2017 - prasad.munirathnam@microsemi.com
+CHANGELOG
+	- 'kmalloc_array' is undefined in kernel version below 3.4.0
+	-  Fixed 'pr_warn' with 'aac_warn'
+	-  Fixed Vmware Build Errors.
+
+Thu Nov 2 2017 - david.carroll@microsemi.com
+SATD-436
+CHANGELOG
+	- Set no_write_same bit for containers, as we don't support it
+
+Thu Nov 9 2017 -prasad.munirathnam@microsemi.com
+CHANGELOG
+	- Unused value, value modified before being used.
+
+Thu Nov 27 2017 -prasad.munirathnam@microsemi.com
+CHANGELOG
+	- Currently Driver saves all the hba device information retrived during drive scan, which is freed only during unload.
+          Free up the saved hba drive information after using it during initialization.
+
+Mon Feb 12 2018 -david.carroll@microsemi.com
+CHANGELOG
+	- Add error condition in case init() function fails from probe_one()
+
+Fri Feb 23 2018 -david.carroll@microsemi.com
+CHANGELOG
+	- Add support for Kdump in RHEL 7.1
