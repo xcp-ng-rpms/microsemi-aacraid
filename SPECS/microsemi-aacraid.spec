@@ -19,9 +19,11 @@
 Summary: %{vendor_name} %{driver_name} device drivers
 Name: %{vendor_label}-%{driver_name}
 Version: 1.2.1.60001
-Release: %{?xsrel}%{?dist}
+Release: %{?xsrel}.0.fixSeries6.1%{?dist}
 License: GPL
 Source0: microsemi-aacraid-1.2.1.60001.tar.gz
+
+Patch0: aacraid-1.2.1.60001-fix-Series-6.patch
 
 BuildRequires: gcc
 BuildRequires: kernel-devel
@@ -39,6 +41,7 @@ version %{kernel_version}
 
 %prep
 %setup -n %{name}-%{version}
+%patch0 -p1
 %{?_cov_prepare}
 
 %build
@@ -70,5 +73,7 @@ find %{buildroot}/lib/modules/%{kernel_version} -name "*.ko" -type f | xargs chm
 
 
 %changelog
+* Thu Nov 28 2024 Christian Großegger <chr.grossegger@gmail.com> - 1.2.1.60001-1.0.fixSeries6.1
+- Fixes Series-6 not working with 60001
 * Mon Sep 19 2022 Zhuangxuan Fei <zhuangxuan.fei@citrix.com> - 1.2.1.60001-1
 - CP-40162: Upgrade microsemi-aacraid driver to version 1.2.1.60001
