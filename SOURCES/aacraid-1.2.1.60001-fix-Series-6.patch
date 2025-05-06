@@ -1,0 +1,13 @@
+diff --git a/comminit.c b/comminit.c
+index 0c44ba8..d035e18 100644
+--- a/comminit.c
++++ b/comminit.c
+@@ -727,7 +727,7 @@ int aac_init_adapter(struct aac_dev *dev)
+ 		}
+ 	}
+ 
+-	if (aac_is_srcv(dev))
++	if (aac_is_src(dev))
+ 		aac_define_int_mode(dev);
+ 		
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0))
