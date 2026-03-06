@@ -1,0 +1,58 @@
+aacraid: replace aac_is_srcv() with aac_is_src()
+
+aac_is_srcv() checks only for the SRCv variant of the SRC controller
+family. aac_is_src() checks for the whole SRC family (both SRC and
+SRCv) and is therefore the correct predicate to use when deciding
+whether to apply SRC-generation behaviour such as defining the
+interrupt mode or switching back to INTx.
+All four call sites that used aac_is_srcv() for this purpose are
+updated to aac_is_src(). The aac_is_srcv() definition itself is left
+in aacraid.h for now as it is still referenced by other driver logic.
+
+Link: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=395e5df79a9588abf1099ea746f11872c9086252
+Link: https://lore.kernel.org/all/20190627161408.10295-1-khorenko@virtuozzo.com/
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+---
+diff --color -Naur microsemi-aacraid-1.2.1.60001.old/comminit.c microsemi-aacraid-1.2.1.60001/comminit.c
+--- microsemi-aacraid-1.2.1.60001.old/comminit.c	2020-12-18 15:53:02.000000000 +0100
++++ microsemi-aacraid-1.2.1.60001/comminit.c	2026-03-20 13:58:49.842159021 +0100
+@@ -437,7 +437,7 @@
+ 	if (status != -ERESTARTSYS)
+ 		aac_fib_free(fibctx);
+ 
+-	if (aac_is_srcv(dev) && dev->msix_enabled)
++	if (aac_is_src(dev) && dev->msix_enabled)
+ 		aac_set_intx_mode(dev);
+ 
+ 	return status;
+@@ -699,7 +699,7 @@
+ 		dev->max_fib_size = status[1] & 0xFFE0;	/* multiple of 32 for PMC */
+ 		host->sg_tablesize = status[2] >> 16;
+ 		dev->sg_tablesize = status[2] & 0xFFFF;
+-		if (aac_is_srcv(dev)) {
++		if (aac_is_src(dev)) {
+ #if (defined(AAC_CITRIX))
+ 			if (host->can_queue > 248)
+ 				host->can_queue = 248;
+@@ -727,7 +727,7 @@
+ 		}
+ 	}
+ 
+-	if (aac_is_srcv(dev))
++	if (aac_is_src(dev))
+ 		aac_define_int_mode(dev);
+ 		
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0))
+diff --color -Naur microsemi-aacraid-1.2.1.60001.old/linit.c microsemi-aacraid-1.2.1.60001/linit.c
+--- microsemi-aacraid-1.2.1.60001.old/linit.c	2020-12-18 15:53:02.000000000 +0100
++++ microsemi-aacraid-1.2.1.60001/linit.c	2026-03-20 14:01:01.985023849 +0100
+@@ -3447,7 +3447,7 @@
+ 	aac_adapter_disable_int(dev);
+ 	aac_adapter_enable_int(dev);
+ 
+-	if (aac_is_srcv(dev))
++	if (aac_is_src(dev))
+ 		aac_define_int_mode(dev);
+ 
+ 	if (dev->msix_enabled)
+

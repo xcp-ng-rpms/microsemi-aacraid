@@ -1,0 +1,39 @@
+aacraid: fix wrong aac_fib_complete() ordering in ioctl_send_fib
+
+aac_fib_complete() was called before the return value of aac_fib_send()
+was checked. A send error therefore caused aac_fib_complete() to run on
+a FIB that was never successfully sent, which could mask the real error.
+
+Fix the ordering: check retval first, bail early on failure, and only
+call aac_fib_complete() when the send succeeded.
+
+Equivalent to the fix introduced in upstream commit
+7c00ffa314bf0fb0e23858bbebad33b48b6abbb9
+('[SCSI] 2.6 aacraid: Variable FIB size (updated patch)').
+
+Link: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=7c00ffa314bf0fb0e23858bbebad33b48b6abbb9
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+---
+diff --color -Naur microsemi-aacraid-1.2.1.60001.old/commctrl.c microsemi-aacraid-1.2.1.60001/commctrl.c
+--- microsemi-aacraid-1.2.1.60001.old/commctrl.c	2020-12-18 15:53:02.000000000 +0100
++++ microsemi-aacraid-1.2.1.60001/commctrl.c	2026-03-20 12:00:00.000000000 +0100
+@@ -183,14 +183,15 @@
+ 			  kfib->header.Command,
+ 			  le16_to_cpu(kfib->header.Size), retval);
+
+-		if (aac_fib_complete(fibptr) != 0) {
+-			if (!retval)
+-				retval = -EINVAL;
++		if (retval) {
+ 			goto cleanup;
+ 		}
+-		if (retval) {
++
++		if (aac_fib_complete(fibptr) != 0) {
++			retval = -EINVAL;
+ 			goto cleanup;
+ 		}
++
+ 	}
+ 	/*
+ 	 *	Make sure that the size returned by the adapter (which includes

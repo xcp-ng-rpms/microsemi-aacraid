@@ -19,9 +19,17 @@
 Summary: %{vendor_name} %{driver_name} device drivers
 Name: %{vendor_label}-%{driver_name}
 Version: 1.2.1.60001
-Release: %{?xsrel}%{?dist}
+Release: %{?xsrel}.1%{?dist}
 License: GPL
 Source0: microsemi-aacraid-1.2.1.60001.tar.gz
+
+# XCP-ng patches
+Patch1001: 0001-aacraid-check-size-values-after-double-fetch-from-us.patch
+Patch1002: 0002-aacraid-prevent-invalid-pointer-dereference.patch
+Patch1003: 0003-scsi-aacraid-fix-leak-of-data-from-stack-back-to-use.patch
+Patch1004: 0004-aacraid-replace-pci_alloc_consistent-with-dma_alloc_.patch
+Patch1005: 0005-aacraid-replace-aac_is_srcv-with-aac_is_src.patch
+Patch1006: 0006-aacraid-fix-wrong-aac_fib_complete-ordering-in-ioctl.patch
 
 BuildRequires: gcc
 BuildRequires: kernel-devel
@@ -39,6 +47,7 @@ version %{kernel_version}
 
 %prep
 %setup -n %{name}-%{version}
+%autopatch -p1
 %{?_cov_prepare}
 
 %build
@@ -70,5 +79,14 @@ find %{buildroot}/lib/modules/%{kernel_version} -name "*.ko" -type f | xargs chm
 
 
 %changelog
+* Thu Mar 06 2026 Julian Vetter <julian.vetter@vates.tech> - 1.2.1.60001-1.1
+- Replace pci_alloc_consistent/pci_free_consistent with dma_alloc_coherent/
+  dma_free_coherent to avoid GFP_ATOMIC failures on XEN guests (CVE-2016-6480)
+- Replace aac_is_srcv() with aac_is_src() at all relevant call sites
+- Fix TOCTOU race in ioctl_send_fib (CVE-2016-6480, backport of fa00c437)
+- Fix wrong aac_fib_complete() error-handling order in ioctl_send_fib
+- Add missing lower-bound check on fibsize in aac_send_raw_srb (backport of b4789b8)
+- Fix uninitialised sense_data leak in fast-response path (backport of 5cc973f)
+
 * Mon Sep 19 2022 Zhuangxuan Fei <zhuangxuan.fei@citrix.com> - 1.2.1.60001-1
 - CP-40162: Upgrade microsemi-aacraid driver to version 1.2.1.60001

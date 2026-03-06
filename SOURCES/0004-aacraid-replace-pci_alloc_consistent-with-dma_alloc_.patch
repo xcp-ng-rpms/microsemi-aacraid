@@ -1,0 +1,145 @@
+aacraid: replace pci_alloc_consistent with dma_alloc_coherent
+
+pci_alloc_consistent() and pci_free_consistent() were removed in
+kernel 5.18 in favour of the generic DMA API. Replace all remaining
+direct call sites and collapse the aac_pci_alloc_consistent() /
+aac_pci_free_consistent() wrappers so they unconditionally delegate to
+dma_alloc_coherent() / dma_free_coherent() regardless of architecture.
+
+Critically, pci_alloc_consistent() internally passed GFP_ATOMIC to the
+DMA allocator. GFP_ATOMIC is non-sleeping and cannot trigger memory
+compaction or reclaim, making it unreliable for large allocations. On
+XEN guests this is especially problematic: the balloon driver
+continuously returns pages to the hypervisor, fragmenting the guest's
+physical address space and making large contiguous allocations nearly
+impossible under GFP_ATOMIC.
+
+The aacraid driver is particularly exposed because fib_map_alloc()
+performs a single contiguous DMA allocation for the entire FIB pool:
+
+  size = (max_cmd_size + sizeof(aac_fib_xporthdr))
+         * (can_queue + AAC_NUM_MGT_FIB)
+
+With max_cmd_size=2048, sizeof(xporthdr)=32, AAC_NUM_MGT_FIB=8, and
+can_queue read from firmware at up to AAC_NUM_IO_FIB (1016), this
+evaluates to 2080 * 1024 = 2,129,920 bytes (over 2 MB) in a single
+GFP_ATOMIC allocation. At that size, GFP_ATOMIC will fail outright on
+any fragmented system and reliably on XEN. Switching to GFP_KERNEL
+allows the allocator to sleep, compact, and retry, making this
+allocation dependable regardless of memory pressure.
+
+Affected files:
+  aacraid.h  - remove CONFIG_ARM64 guard, fix aac_pci_free_consistent
+  aachba.c   - direct calls inside __VMKLNX__ guard
+  commsup.c  - direct pci_free_consistent in aac_fib_map_free
+  frey.c     - direct calls in frey POST path
+
+Link: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=f481973d5efdb63b7c6ca6b0ecd2b8462556a461
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+---
+diff --color -Naur aacraid-1.2.1-60001.old/aacraid.h aacraid-1.2.1-60001/aacraid.h
+--- aacraid-1.2.1-60001.old/aacraid.h	2020-11-26 08:45:08.000000000 +0100
++++ aacraid-1.2.1-60001/aacraid.h	2026-02-20 14:34:58.665630069 +0100
+@@ -3731,25 +3731,18 @@
+ extern int aac_check_reset;
+ extern int aac_fib_dump;
+
+-#if defined(CONFIG_ARM64)
+ static inline void *
+ aac_pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
+ 		     dma_addr_t *dma_handle) {
+ 	return dma_alloc_coherent(hwdev == NULL ? NULL : &hwdev->dev, size, dma_handle, GFP_KERNEL);
+ }
+-#else
+-static inline void *
+-aac_pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
+-		     dma_addr_t *dma_handle) {
+-	return pci_alloc_consistent(hwdev, size, dma_handle);
+-}
+-#endif
+
+ static inline void
+ aac_pci_free_consistent(struct pci_dev *hwdev, size_t size,
+ 			void *vaddr, dma_addr_t dma_handle)
+ {
+-	pci_free_consistent(hwdev, size, vaddr, dma_handle);
++	dma_free_coherent(hwdev == NULL ? NULL : &hwdev->dev, size,
++			  vaddr, dma_handle);
+ }
+
+ #endif
+diff --color -Naur aacraid-1.2.1-60001.old/aachba.c aacraid-1.2.1-60001/aachba.c
+--- aacraid-1.2.1-60001.old/aachba.c	2020-11-26 08:45:08.000000000 +0100
++++ aacraid-1.2.1-60001/aachba.c	2026-02-20 14:43:52.063797501 +0100
+@@ -2763,7 +2763,7 @@
+
+ #if defined(__VMKLNX__)
+ 	/* allocate DMA buffer for response */
+-	lresp = (void *) pci_alloc_consistent(dev->pdev, xfer_len, &addr);
++	lresp = dma_alloc_coherent(&dev->pdev->dev, xfer_len, &addr, GFP_KERNEL);
+ 	if(!lresp) {
+ 		aac_err(dev,"aac_pci_alloc_consistent failed\n");
+ 		rcode = -ENOMEM;
+@@ -2831,7 +2831,7 @@
+
+ bmic_error:
+ #if defined(__VMKLNX__)
+-	pci_free_consistent(dev->pdev, xfer_len, lresp, addr);
++	dma_free_coherent(&dev->pdev->dev, xfer_len, lresp, addr);
+ #else
+ 	dma_unmap_single(&dev->pdev->dev, addr, xfer_len, DMA_BIDIRECTIONAL);
+ #endif
+diff --color -Naur aacraid-1.2.1-60001.old/commsup.c aacraid-1.2.1-60001/commsup.c
+--- aacraid-1.2.1-60001.old/commsup.c	2020-11-26 08:45:08.000000000 +0100
++++ aacraid-1.2.1-60001/commsup.c	2026-02-20 14:37:38.295056556 +0100
+@@ -260,7 +260,7 @@
+ 	fib_size = dev->max_fib_size + sizeof(struct aac_fib_xporthdr);
+ 	alloc_size = fib_size * num_fibs + ALIGN32 - 1;
+
+-	pci_free_consistent(dev->pdev, alloc_size, dev->hw_fib_va,
++	dma_free_coherent(&dev->pdev->dev, alloc_size, dev->hw_fib_va,
+ 							dev->hw_fib_pa);
+ 	dev->hw_fib_va = NULL;
+ 	dev->hw_fib_pa = 0;
+diff --color -Naur aacraid-1.2.1-60001.old/frey.c aacraid-1.2.1-60001/frey.c
+--- aacraid-1.2.1-60001.old/frey.c	2020-11-26 08:45:08.000000000 +0100
++++ aacraid-1.2.1-60001/frey.c	2026-02-20 14:43:54.647885708 +0100
+@@ -354,17 +354,17 @@
+ #if (((__GNUC__ * 10000) + (__GNUC_MINOR__ * 100) + __GNUC_PATCHLEVEL__) <= 400002)
+ 		baddr = 0;
+ #endif
+-		buffer = pci_alloc_consistent(dev->pdev, 512, &baddr);
++		buffer = dma_alloc_coherent(&dev->pdev->dev, 512, &baddr, GFP_KERNEL);
+ 		ret = -2;
+ 		if (unlikely(buffer == NULL))
+ 			return ret;
+ #if (((__GNUC__ * 10000) + (__GNUC_MINOR__ * 100) + __GNUC_PATCHLEVEL__) <= 400002)
+ 		paddr = 0;
+ #endif
+-		post = pci_alloc_consistent(dev->pdev,
+-		  sizeof(struct POSTSTATUS), &paddr);
++		post = dma_alloc_coherent(&dev->pdev->dev,
++		  sizeof(struct POSTSTATUS), &paddr, GFP_KERNEL);
+ 		if (unlikely(post == NULL)) {
+-			pci_free_consistent(dev->pdev, 512, buffer, baddr);
++			dma_free_coherent(&dev->pdev->dev, 512, buffer, baddr);
+ 			return ret;
+ 		}
+ 		memset(buffer, 0, 512);
+@@ -373,14 +373,14 @@
+ 		frey_writel0(dev, IMR0, paddr);
+ 		frey_sync_cmd(dev, COMMAND_POST_RESULTS, baddr, 0, 0, 0, 0, 0,
+ 		  NULL, NULL, NULL, NULL, NULL);
+-		pci_free_consistent(dev->pdev, sizeof(struct POSTSTATUS),
++		dma_free_coherent(&dev->pdev->dev, sizeof(struct POSTSTATUS),
+ 		  post, paddr);
+ 		if (likely((buffer[0] == '0') && ((buffer[1] == 'x') || (buffer[1] == 'X')))) {
+ 			ret = (buffer[2] <= '9') ? (buffer[2] - '0') : (buffer[2] - 'A' + 10);
+ 			ret <<= 4;
+ 			ret += (buffer[3] <= '9') ? (buffer[3] - '0') : (buffer[3] - 'A' + 10);
+ 		}
+-		pci_free_consistent(dev->pdev, 512, buffer, baddr);
++		dma_free_coherent(&dev->pdev->dev, 512, buffer, baddr);
+ 		return ret;
+ 	}
+ 	/*
