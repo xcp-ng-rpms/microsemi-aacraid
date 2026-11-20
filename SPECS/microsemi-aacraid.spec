@@ -19,7 +19,7 @@
 Summary: %{vendor_name} %{driver_name} device drivers
 Name: %{vendor_label}-%{driver_name}
 Version: 1.2.1.60001
-Release: %{?xsrel}.0.kernelpreview.1%{?dist}
+Release: %{?xsrel}.0.kernelpreview.1.0.testv0.1%{?dist}
 License: GPL
 Source0: microsemi-aacraid-1.2.1.60001.tar.gz
 
