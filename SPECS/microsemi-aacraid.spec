@@ -19,12 +19,12 @@
 Summary: %{vendor_name} %{driver_name} device drivers
 Name: %{vendor_label}-%{driver_name}
 Version: 1.2.1.60001
-Release: %{?xsrel}%{?dist}
+Release: %{?xsrel}.0.kernelpreview.1%{?dist}
 License: GPL
 Source0: microsemi-aacraid-1.2.1.60001.tar.gz
 
 BuildRequires: gcc
-BuildRequires: kernel-devel
+BuildRequires: kernel-devel >= 4.19.325-cip137.8.0.46.16
 %{?_cov_buildrequires}
 Provides: vendor-driver
 Requires: kernel-uname-r = %{kernel_version}
@@ -70,5 +70,8 @@ find %{buildroot}/lib/modules/%{kernel_version} -name "*.ko" -type f | xargs chm
 
 
 %changelog
+* Mon Nov 16 2026 Quentin Casasnovas <quentin.casasnovas@vates.tech> - 1.2.1.60001-1.0.kernelpreview.1
+- Rebuild for kernel v4.19.325-cip137
+
 * Mon Sep 19 2022 Zhuangxuan Fei <zhuangxuan.fei@citrix.com> - 1.2.1.60001-1
 - CP-40162: Upgrade microsemi-aacraid driver to version 1.2.1.60001
